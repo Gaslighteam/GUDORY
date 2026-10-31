@@ -75,6 +75,7 @@ PoseFrame toVisible(PoseFrame frame, Rect crop) {
     imageHeight: (frame.imageHeight * crop.height).round(),
     orientation: frame.orientation,
     rollDeg: frame.rollDeg,
+    rollReliable: frame.rollReliable,
     pitchDeg: frame.pitchDeg,
     at: frame.at,
   );
