@@ -15,7 +15,6 @@ enum InstructionKey {
   subjectRight,
   phoneUp, // height
   phoneDown,
-  oppositeWay, // error growing: "the other way"
   fitWholeBody, // fit the whole body in frame
   noPerson, // no person visible
   aligned, // aligned: hold still

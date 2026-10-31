@@ -6,8 +6,7 @@ typedef CoachClock = Duration Function();
 
 /// Stateful instruction selection; the injected clock must be monotonic.
 ///
-/// oppositeWay is one state transition per axis activation, not a per-frame
-/// event. Consumers should announce on key/axis transitions, not object identity:
+/// Consumers should announce on key/axis transitions, not object identity:
 /// errors and amounts are live snapshots even while a key is held.
 /// PoseSource supplies the whole shot frame; coaching.dart alone applies the
 /// preview crop. The engine never crops or rotates landmarks again.
@@ -23,9 +22,6 @@ class DefaultCoachEngine implements CoachEngine {
 
   static const _enter = 1.0;
   static const _exit = 0.8;
-  static const _growth = 0.3;
-  static const _growthWindow = Duration(seconds: 1);
-  static const _precision = 1e-9;
   static const _thresholdPrecision = 1e-12;
 
   final Duration minInstructionHold;
@@ -34,8 +30,6 @@ class DefaultCoachEngine implements CoachEngine {
   CoachAxis? _activeAxis;
   InstructionKey? _shownKey;
   Duration? _shownAt;
-  bool _warned = false;
-  final List<_ErrorSample> _history = [];
 
   static CoachClock _stopwatchClock() {
     final watch = Stopwatch()..start();
@@ -94,8 +88,7 @@ class DefaultCoachEngine implements CoachEngine {
     );
     final errors = axes.errors;
     if (!frame.rollReliable && _activeAxis == CoachAxis.level) {
-      // Also interrupts oppositeWay when it belongs to the level axis. Other
-      // axes retain their holds, hysteresis and warning history.
+      // Other axes retain their holds and hysteresis.
       _clearGuidance();
     }
     // Degenerate geometry cannot yield a finite movement estimate.
@@ -124,17 +117,9 @@ class DefaultCoachEngine implements CoachEngine {
     }
     final axis = _activeAxis!;
     final error = errors[axis]!;
-    final worseningNow = _recordError(error, now);
     if (_canChange(now)) {
       final direction = _direction(axis, error);
-      if (_shownKey == InstructionKey.oppositeWay || _shownKey != direction) {
-        _show(direction, now);
-      } else if (!_warned && worseningNow) {
-        // No queued warning is carried over from the hold period: the live
-        // one-second window and latest movement must still show worsening.
-        _warned = true;
-        _show(InstructionKey.oppositeWay, now);
-      }
+      if (_shownKey != direction) _show(direction, now);
     }
 
     final amount = switch (axis) {
@@ -219,31 +204,6 @@ class DefaultCoachEngine implements CoachEngine {
     _shownAt = now;
   }
 
-  bool _recordError(double error, Duration now) {
-    if (_history.isNotEmpty &&
-        (_history.last.error.sign != error.sign ||
-            error.abs() < _history.last.error.abs() - _precision)) {
-      // Improvement invalidates earlier worsening evidence. A tiny rebound
-      // must not resurrect a warning caused by the previous wrong movement.
-      _history.clear();
-    }
-    _history.removeWhere((sample) => now - sample.at > _growthWindow);
-    final previous = _history.isEmpty ? null : _history.last;
-    final worsening =
-        previous != null &&
-        now > previous.at &&
-        error.abs() > previous.error.abs() + _precision &&
-        _history.any(
-          (sample) =>
-              now > sample.at &&
-              error.abs() - sample.error.abs() >= _growth - _precision,
-        );
-    // Repeated updates at the same instant do not create temporal evidence.
-    _history.removeWhere((sample) => sample.at == now);
-    _history.add(_ErrorSample(now, error));
-    return worsening;
-  }
-
   CoachInstruction _interrupt(
     InstructionKey key,
     Map<CoachAxis, double> errors, {
@@ -274,8 +234,6 @@ class DefaultCoachEngine implements CoachEngine {
     _activeAxis = null;
     _shownKey = null;
     _shownAt = null;
-    _warned = false;
-    _history.clear();
   }
 
   @override
@@ -283,10 +241,4 @@ class DefaultCoachEngine implements CoachEngine {
     _targetValues = null;
     _clearGuidance();
   }
-}
-
-class _ErrorSample {
-  const _ErrorSample(this.at, this.error);
-  final Duration at;
-  final double error;
 }
