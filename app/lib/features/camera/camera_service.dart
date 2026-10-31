@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/contracts.dart';
 import '../../core/models.dart';
-import 'shot_orientation.dart';
 
 final cameraServiceProvider = Provider<CameraService>((ref) {
   final service = CameraService();
@@ -29,7 +28,6 @@ class CameraService extends ChangeNotifier implements FrameBus {
   double maxZoom = 1;
   double zoom = 1;
   FlashMode flashMode = FlashMode.off;
-  HeldOrientation _held = HeldOrientation.portrait;
 
   CameraController? get controller => _controller;
   bool get isReady => _controller?.value.isInitialized ?? false;
@@ -68,7 +66,8 @@ class CameraService extends ChangeNotifier implements FrameBus {
       }
       final controller = CameraController(
         _cameras[_index],
-        ResolutionPreset.high,
+        // The preset also sets the still size; "high" gave 1280x720 photos.
+        ResolutionPreset.max,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.nv21,
       );
@@ -82,7 +81,7 @@ class CameraService extends ChangeNotifier implements FrameBus {
       maxZoom = await controller.getMaxZoomLevel();
       zoom = 1.0.clamp(minZoom, maxZoom);
       await controller.setFlashMode(flashMode);
-      await _applyCaptureOrientation(controller);
+      await _lockPortrait(controller);
       await _startStream(controller);
       error = null;
     } catch (e) {
@@ -120,25 +119,15 @@ class CameraService extends ChangeNotifier implements FrameBus {
     _notify();
   }
 
-  /// The UI is portrait-locked, so the saved photo's orientation follows how
-  /// the phone is held (landscape when turned sideways).
-  Future<void> setHeldOrientation(HeldOrientation held) async {
-    _held = held;
-    final controller = _controller;
-    if (controller != null) await _applyCaptureOrientation(controller);
-  }
-
-  Future<void> _applyCaptureOrientation(CameraController controller) async {
-    final orientation = !_held.isLandscape
-        ? DeviceOrientation.portraitUp
-        // Top of the phone to the left = landscapeLeft (Android ROTATION_90).
-        : _held.quarterTurns > 0
-        ? DeviceOrientation.landscapeLeft
-        : DeviceOrientation.landscapeRight;
+  /// Capture is always portrait. Locking it to a landscape orientation makes
+  /// CameraPreview rotate the live view inside our portrait-locked UI (the
+  /// "wobbly" preview), so landscape photos are rotated after capture
+  /// instead (framing.dart).
+  Future<void> _lockPortrait(CameraController controller) async {
     try {
-      await controller.lockCaptureOrientation(orientation);
+      await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
     } on CameraException {
-      // Not fatal: the photo keeps the default orientation.
+      // Not fatal.
     }
   }
 
