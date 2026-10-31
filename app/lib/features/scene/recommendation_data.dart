@@ -32,7 +32,9 @@ class SceneComposition {
 }
 
 class SceneCluster {
-  SceneCluster(this.orientation, this.center, this.levels);
+  SceneCluster(this.orientation, this.center, this.levels, {int? support})
+    : support = support ?? levels.values.fold<int>(0, (sum, c) => sum + c.n);
+  final int support;
   final ShotOrientation orientation;
   final List<double> center;
   final Map<int, SceneComposition> levels;
@@ -145,6 +147,7 @@ class RecommendationData {
               o,
               List.unmodifiable(normalizeClipEmbedding(vector)),
               Map.unmodifiable(levels),
+              support: n,
             ),
           );
           counts[o] = (counts[o] ?? 0) + 1;

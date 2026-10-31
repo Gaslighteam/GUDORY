@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../../core/contracts.dart';
 import '../../core/models.dart';
 import 'recommendation_data.dart';
+import 'candidate_stability.dart';
+import 'layout_prototypes.dart';
 import 'scene_embedding.dart';
 
 export 'scene_embedding.dart' show SceneView;
@@ -19,8 +21,11 @@ class SceneRecommendationDiagnostics {
     this.selectedLevel,
     this.status,
     this.trace,
-    this.clusterCount,
-  );
+    this.clusterCount, {
+    this.candidateId,
+    this.candidateSelectedAt,
+    this.layoutStatus = 'disabled',
+  });
   final bool cacheHit;
   final int inferences;
   final Duration duration;
@@ -29,6 +34,9 @@ class SceneRecommendationDiagnostics {
   final String status;
   final SceneEmbeddingTrace? trace;
   final int clusterCount;
+  final String? candidateId;
+  final Duration? candidateSelectedAt;
+  final String layoutStatus;
 }
 
 class _EmbeddingAttempt {
@@ -49,12 +57,37 @@ class SceneRecommender implements Recommender {
     this.cacheDuration = const Duration(seconds: 3),
     this.requestTimeout = const Duration(seconds: 10),
     DateTime Function()? now,
+    this.loadLayoutAsset,
+    Duration Function()? candidateClock,
+    CandidateStabilityConfig stabilityConfig = const CandidateStabilityConfig(),
+    this.layoutScoring = const LayoutScoringConfig(),
   }) : _embedder = embedder ?? NativeSceneEmbedder(),
        _loadAsset =
            loadAsset ??
            (() => (bundle ?? rootBundle).loadString('assets/recommend.json')),
        _viewForFrame = viewForFrame ?? _portraitView,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _selector = CandidateSelector(
+         clock: candidateClock,
+         config: stabilityConfig,
+       );
+
+  final Future<String> Function()? loadLayoutAsset;
+  final CandidateSelector _selector;
+  final LayoutScoringConfig layoutScoring;
+  LayoutPrototypeData? _layout;
+  String _layoutStatus = 'disabled';
+  ShootMode _mode = ShootMode.recommend;
+  int _candidateEpoch = 0;
+
+  /// Integration calls this on an explicit mode change, even while no
+  /// recommend() calls occur in custom mode. No core contract change needed.
+  void setMode(ShootMode mode) {
+    if (_mode == mode) return;
+    _mode = mode;
+    _candidateEpoch++;
+    _selector.reset();
+  }
 
   final SceneEmbedder _embedder;
   final Future<String> Function() _loadAsset;
@@ -92,6 +125,25 @@ class SceneRecommender implements Recommender {
       if (!_disposed && generation == _assetGeneration) {
         _data = data;
         _assetStatus = 'loaded';
+        final loader = loadLayoutAsset;
+        if (loader != null) {
+          try {
+            final layoutText = await loader().timeout(requestTimeout);
+            final layout = await compute(_parseLayout, (
+              layoutText,
+              data,
+            )).timeout(requestTimeout);
+            if (!_disposed && generation == _assetGeneration) {
+              _layout = layout;
+              _layoutStatus = 'loaded';
+            }
+          } catch (_) {
+            if (generation == _assetGeneration) {
+              _layout = null;
+              _layoutStatus = 'unavailable/legacy-matching';
+            }
+          }
+        }
       }
     } catch (_) {
       if (generation == _assetGeneration) {
@@ -116,6 +168,9 @@ class SceneRecommender implements Recommender {
   Future<void> reloadAssets() async {
     if (_disposed) return;
     _assetGeneration++;
+    _candidateEpoch++;
+    _selector.reset();
+    _layout = null;
     _data = RecommendationData.empty();
     _loading = null;
     invalidateEmbedding();
@@ -139,15 +194,36 @@ class SceneRecommender implements Recommender {
     final watch = Stopwatch()..start();
     final level = recommendationLevel(requested);
     final generation = _generation;
+    final context = CandidateContext(level, orientation, _mode);
+    if (loadLayoutAsset != null && _selector.context != context) {
+      _candidateEpoch++;
+      _selector.useContext(context);
+    }
+    final candidateEpoch = _candidateEpoch;
     bool hit = false;
     SceneMatch? match;
     SceneEmbeddingTrace? trace;
     var clusterCount = 0;
     var status = 'fallback';
     var stage = 'asset';
+    Recommendation fallback() {
+      if (!_disposed &&
+          candidateEpoch == _candidateEpoch &&
+          _selector.context == context &&
+          _selector.selected != null) {
+        status = 'held/$status';
+        return _selector.selected!;
+      }
+      return _data.fallback(level, orientation);
+    }
+
     try {
-      if (_disposed) return _data.fallback(level, orientation);
+      if (_disposed) return fallback();
       await _assets();
+      if (_mode != ShootMode.recommend || candidateEpoch != _candidateEpoch) {
+        status = 'fallback/context-changed';
+        return fallback();
+      }
       clusterCount = _data.clusters
           .where((c) => c.orientation == orientation)
           .length;
@@ -155,7 +231,7 @@ class SceneRecommender implements Recommender {
         status = _disposed
             ? 'fallback/disposed'
             : 'fallback/${_assetStatus == 'loaded' ? 'matching/no-clusters' : _assetStatus}';
-        return _data.fallback(level, orientation);
+        return fallback();
       }
       stage = 'geometry';
       final view = _viewForFrame(frame, orientation);
@@ -183,7 +259,7 @@ class SceneRecommender implements Recommender {
       }
       trace ??= embedding?.trace;
       if (_disposed || embedding == null) {
-        return _data.fallback(level, orientation);
+        return fallback();
       }
       stage = 'matching';
       match = await compute(_score, (
@@ -192,13 +268,32 @@ class SceneRecommender implements Recommender {
         level,
         orientation,
       )).timeout(requestTimeout);
-      if (_disposed || generation != _generation) {
+      if (_disposed ||
+          generation != _generation ||
+          candidateEpoch != _candidateEpoch) {
         status = 'fallback/invalidated';
-        return _data.fallback(level, orientation);
+        return fallback();
       }
       status = match.recommendation.neighbors > 0
           ? 'matched'
           : 'fallback/no-positive-neighbors';
+      final layout = _layout;
+      if (layout != null && loadLayoutAsset != null) {
+        final candidates = layout.rank(
+          embedding.values,
+          level,
+          orientation,
+          embedding.variant,
+          config: layoutScoring,
+        );
+        final selected = _selector.update(context, candidates);
+        if (selected != null) {
+          status = candidates.isEmpty
+              ? 'prototype/held-no-supported-candidate'
+              : 'prototype/matched';
+          return selected;
+        }
+      }
       return match.recommendation;
     } catch (error) {
       // Includes synchronous plugin/format Errors, model/load failures, invalid
@@ -207,7 +302,7 @@ class SceneRecommender implements Recommender {
           ? 'fallback/${error.code}'
           : 'fallback/$stage/error-or-timeout';
       if (error is SceneFailure) trace = error.trace;
-      return _data.fallback(level, orientation);
+      return fallback();
     } finally {
       lastDiagnostics = SceneRecommendationDiagnostics(
         hit,
@@ -218,6 +313,9 @@ class SceneRecommender implements Recommender {
         status,
         trace,
         clusterCount,
+        candidateId: _selector.selectedId,
+        candidateSelectedAt: _selector.selectedAt,
+        layoutStatus: _layoutStatus,
       );
     }
   }
@@ -307,6 +405,8 @@ class SceneRecommender implements Recommender {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _selector.reset();
+    _candidateEpoch++;
     _assetGeneration++;
     invalidateEmbedding();
     try {
@@ -321,3 +421,6 @@ class SceneRecommender implements Recommender {
 SceneMatch _score(
   (RecommendationData, SceneEmbedding, int, ShotOrientation) job,
 ) => job.$1.match(job.$2.values, job.$3, job.$4, job.$2.variant);
+
+LayoutPrototypeData _parseLayout((String, RecommendationData) job) =>
+    LayoutPrototypeData.parse(job.$1, job.$2);

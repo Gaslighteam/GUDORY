@@ -114,6 +114,8 @@ def main(argv=None):
     parser.add_argument("--supplementary-weight", type=float, default=1)
     parser.add_argument("--baseline", type=Path, default=Path(__file__).with_name("recommendation_baseline.json"),
                         help="Aggregate-only baseline used for report comparison, never training")
+    parser.add_argument("--layout-out", type=Path, default=None,
+                        help="Optional aggregate composition prototypes; legacy JSON stays unchanged")
     args = parser.parse_args(argv)
     import math
     if not args.photos.is_dir() or not all(math.isfinite(w) and w > 0 for w in (args.team_weight, args.supplementary_weight)):
@@ -129,6 +131,12 @@ def main(argv=None):
                                          args.team_weight, args.supplementary_weight)
     asset, diagnostics = build_asset(samples)
     payload = serialize_asset(asset)
+    layout_payload = None
+    if args.layout_out is not None:
+        from layout_prototypes import build_layout_asset, serialize_layout_asset
+        layout_payload = serialize_layout_asset(build_layout_asset(samples, asset), asset)
+        if args.layout_out.resolve() in (args.out.resolve(), args.report.resolve()):
+            parser.error("Layout output must not overwrite the legacy asset or report")
     metadata = {name: importlib.metadata.version(name) for name in
                 ("numpy", "pillow", "mediapipe", "onnxruntime", "scikit-learn")}
     metadata["Python"] = sys.version.split()[0]
@@ -140,8 +148,13 @@ def main(argv=None):
     report += "\n" + compare_baseline(baseline, counts, diagnostics, len(payload),
                                      args.team_weight, args.supplementary_weight,
                                      hashlib.sha256(payload).hexdigest())
+    if layout_payload is not None:
+        report += f"\n## Phase A composition prototypes\n\nOptional aggregate sidecar: {len(layout_payload):,} bytes. Legacy asset schema unchanged.\n"
     # Validate all output before replacing either file; originals are untouched.
-    for path, data in ((args.out, payload), (args.report, report.encode("utf-8"))):
+    outputs = [(args.out, payload), (args.report, report.encode("utf-8"))]
+    if layout_payload is not None:
+        outputs.append((args.layout_out, layout_payload))
+    for path, data in outputs:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(path.suffix + ".tmp")
         temporary.write_bytes(data)
