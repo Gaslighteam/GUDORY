@@ -1,0 +1,77 @@
+{
+  "_note": "Stub until Seojun's build_assets.py output lands. Only fallback is filled.",
+  "model": "clip-vit-base-patch32",
+  "dim": 512,
+  "quant": "int8",
+  "levels": {
+    "portrait": [],
+    "landscape": []
+  },
+  "fallback": {
+    "portrait": {
+      "1": {
+        "h": 0.85,
+        "cx": 0.5,
+        "cy": 0.58,
+        "hy": null
+      },
+      "2": {
+        "h": 0.72,
+        "cx": 0.5,
+        "cy": 0.58,
+        "hy": null
+      },
+      "3": {
+        "h": 0.6,
+        "cx": 0.5,
+        "cy": 0.58,
+        "hy": null
+      },
+      "4": {
+        "h": 0.48,
+        "cx": 0.5,
+        "cy": 0.58,
+        "hy": null
+      },
+      "5": {
+        "h": 0.36,
+        "cx": 0.5,
+        "cy": 0.58,
+        "hy": null
+      }
+    },
+    "landscape": {
+      "1": {
+        "h": 0.88,
+        "cx": 0.5,
+        "cy": 0.6,
+        "hy": null
+      },
+      "2": {
+        "h": 0.76,
+        "cx": 0.5,
+        "cy": 0.6,
+        "hy": null
+      },
+      "3": {
+        "h": 0.64,
+        "cx": 0.5,
+        "cy": 0.6,
+        "hy": null
+      },
+      "4": {
+        "h": 0.5,
+        "cx": 0.5,
+        "cy": 0.6,
+        "hy": null
+      },
+      "5": {
+        "h": 0.38,
+        "cx": 0.5,
+        "cy": 0.6,
+        "hy": null
+      }
+    }
+  },
+  "clusters": []
+}
