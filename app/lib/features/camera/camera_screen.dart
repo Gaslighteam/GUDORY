@@ -102,6 +102,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   Future<void> _capture() async {
     if (_capturing || !_camera.isReady) return;
     _feedback.stop();
+    _feedback.shutter();
     setState(() => _capturing = true);
     try {
       final file = await _camera.takePicture();

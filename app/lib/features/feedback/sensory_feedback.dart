@@ -17,6 +17,7 @@ final feedbackProvider = Provider<SensoryFeedback>((ref) {
 class SensoryFeedback implements FeedbackService {
   final _beep = AudioPlayer();
   final _ding = AudioPlayer();
+  final _shutter = AudioPlayer();
   Timer? _beepTimer;
   double _error = 0;
   bool _hasVibrator = false;
@@ -29,6 +30,8 @@ class SensoryFeedback implements FeedbackService {
       await _beep.setSource(AssetSource('sounds/beep.wav'));
       await _ding.setReleaseMode(ReleaseMode.stop);
       await _ding.setSource(AssetSource('sounds/ding.wav'));
+      await _shutter.setReleaseMode(ReleaseMode.stop);
+      await _shutter.setSource(AssetSource('sounds/shutter.wav'));
       _hasVibrator = await Vibration.hasVibrator();
     } catch (_) {
       // Feedback is best-effort; the on-screen bubble still works.
@@ -62,10 +65,17 @@ class SensoryFeedback implements FeedbackService {
     _beepTimer = null;
   }
 
+  /// Camera shutter click (team-made sound) at the moment of capture.
+  void shutter() {
+    _shutter.stop();
+    _shutter.resume();
+  }
+
   void dispose() {
     stop();
     _beep.dispose();
     _ding.dispose();
+    _shutter.dispose();
   }
 
   void _tick() {
