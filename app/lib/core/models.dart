@@ -135,10 +135,9 @@ class Recommendation {
   /// Overall target (all photos of the matched clusters).
   final TargetComposition target;
 
-  /// Same matched clusters, only photos whose subject stood on the left
-  /// (`cx < 0.45`) / right (`cx > 0.55`) of the frame. null when that side
-  /// has fewer than 3 photos. Coaching picks the side the live subject is
-  /// already on, so a composition the user framed on purpose is kept.
+  /// Same matched clusters, only photos whose subject stood in the left
+  /// (`cx < 0.40`) / right (`cx > 0.60`) zone. null when that zone has fewer
+  /// than 3 photos. Coaching picks the zone from the user's focus point.
   final TargetComposition? left;
   final TargetComposition? right;
 
