@@ -7,7 +7,11 @@
 ## 1. Product
 - One line: a camera app that turns the owner's sense of a good shot into instructions a non-photographer can follow with ears, hands and feet ("one step back", "lower the phone by one fist"), delivered as voice, beeps and vibration, one at a time.
 - Contest theme keyword: **감각 (sense)**. Shown on the first screen: "사진 감각, 빌려드릴게요".
-- Target composition source: ① the active **reference photo** (highest priority; the user may load several and they persist until reset) ② otherwise the **per-category good-composition model** built from photos the team curated.
+- Two modes, switched with a button at the top left:
+  - **추천 모드 (recommend)**: the app looks at the background in the camera view, finds similar well-shot photos (Unsplash Lite, people) and uses their composition as the target. A **5-step bar** chooses 인물 중심 (1, person large) ↔ 배경 중심 (5, person small).
+  - **맞춤 모드 (custom)**: the active **reference photo** (the user may load several; they persist until reset) is the target. With no reference, coaching pauses and the bubble asks for one.
+- **Portrait and landscape** shots are both supported. The UI stays portrait-locked; the phone's physical orientation (accelerometer) decides the shot orientation.
+- No categories and no hashtags (removed 2026-10-31 by team decision).
 - Deliverable: Android APK. iOS is out of scope.
 
 ## 2. Stack (pinned)
@@ -23,9 +27,9 @@ app/lib/app/                               router, theme, tokens — lead
 app/lib/features/camera/, feedback/        Taeho
 app/lib/features/coach/                    Eungyu
 app/lib/features/scene/                    Seojun
-app/assets/                                categories.json (Bomin finalizes) / tools output JSON / *.onnx (gitignored)
-tools/                                     Seojun
-data/                                      Bomin (photos/ gitignored, only labels.csv committed)
+app/assets/                                recommend.json (tools output) / *.onnx (gitignored)
+tools/                                     Seojun (unsplash_candidates.py: Bomin)
+data/                                      Bomin (photos/ and unsplash/ gitignored, nothing but README committed)
 api/                                       Taeho
 ```
 - **Never edit outside your own folder.** If you need something there, write a "request for the lead" and stop.
@@ -49,12 +53,17 @@ enum InstructionKey {
   fitWholeBody,                // whole body not in frame
   noPerson,                    // no person visible
   aligned,                     // good, hold still
+  turnLandscape, turnPortrait, // target orientation differs from how the phone is held
+  addReference,                // custom mode with no reference
 }
-class Landmark { final double x, y, visibility; }          // 0~1, portrait screen space
+enum ShootMode { recommend, custom }
+enum ShotOrientation { portrait, landscape }
+class Landmark { final double x, y, visibility; }          // 0~1, shot space (see below)
 class PoseFrame {
   final List<Landmark>? landmarks;   // 33 points in ML Kit PoseLandmarkType order, null = no person
-  final int imageWidth, imageHeight; // after rotation correction
-  final double rollDeg, pitchDeg;    // sensors; upright portrait = 0, 0
+  final int imageWidth, imageHeight; // in shot space (landscape: width > height)
+  final ShotOrientation orientation; // from the accelerometer, hysteresis 45°/60°
+  final double rollDeg, pitchDeg;    // sensors, relative to the shot orientation; level = 0, 0
   final DateTime at;
 }
 class TargetComposition {
@@ -62,9 +71,15 @@ class TargetComposition {
   final double personCenterX;     // center x of shoulders+hips, 0~1
   final double personCenterY;     // hip center y, 0~1
   final double? horizonY;         // optional
+  final ShotOrientation orientation;
   final double tolHeight, tolX, tolY; // defaults 0.10, 0.08, 0.08
   final double tolRollDeg;        // default 3
-  final String source;            // 'reference' | 'category:<id>'
+  final String source;            // 'reference' | 'recommend:<1-5>' | 'fallback'
+}
+class Recommendation {
+  final TargetComposition target;
+  final int neighbors;            // photos behind the target (0 = fallback median only, no CLIP)
+  final String modelVariant;      // 'q8' | 'fp16' | 'none'
 }
 class CoachInstruction {
   final InstructionKey key; final CoachAxis? axis; final Who who;
@@ -73,11 +88,6 @@ class CoachInstruction {
   final bool aligned;             // all four axes aligned
   final Map<CoachAxis, double> errors; // for debug overlay
 }
-class CategoryGuess {
-  final String primaryId; final List<String> suggestedIds; // max 2
-  final List<String> hashtagIds; final double confidence; final String modelVariant; // 'q8' | 'fp16' | 'labeling'
-}
-class CategoryInfo { final String id, label; final List<String> prompts; final List<String> hashtagIds; }
 class CameraFrame { final CameraImage image; final int sensorOrientation; final bool isFrontCamera; }
 ```
 
@@ -88,46 +98,67 @@ abstract class CoachEngine { CoachInstruction update(PoseFrame f, TargetComposit
 abstract class PoseSource { Stream<PoseFrame> poses(FrameBus bus); }               // Eungyu. ML Kit + sensors, max 15/s
 abstract class ReferenceAnalyzer { Future<TargetComposition> analyze(String imagePath); } // Eungyu. Throws NoPersonException
 abstract class WhoMoves { Who decide(CameraFrame live, String referencePath, double subjectXError); } // Eungyu, Should
-abstract class SceneClassifier { Future<void> warmUp(); Future<CategoryGuess> classify(CameraFrame f); } // Seojun. UI calls every ~3 s
-abstract class CompositionLibrary { Future<void> load(); List<CategoryInfo> get categories; TargetComposition targetFor(String id); } // Seojun
+abstract class Recommender {                                                      // Seojun. UI calls every ~3 s in recommend mode
+  Future<void> warmUp();                                                           // loads recommend.json + CLIP
+  Future<Recommendation> recommend(CameraFrame f, int level, ShotOrientation o);   // level 1~5. Never throws: falls back to the level median
+}
 abstract class ModelManager { Future<String> ensureBest(); String get activeVariant; Stream<double> get downloadProgress; } // Seojun
 abstract class FeedbackService { void announce(CoachInstruction i, String lang); void proximity(double error); void aligned(); void stop(); } // Taeho
 ```
-- `PoseFrame.landmarks` are 0~1 values **already rotated into portrait screen space**. PoseSource (Eungyu) does the rotation.
-- `amount` conversion (Eungyu): distance d(m) ≈ 1.65 / (personHeightRatio × 2·tan(32.5°)); one step = 0.6 m; one fist = 0.1 m; round to 0.5.
-- Instruction order: level → distance → horizontal → height. Enter when |error| > 1.0, exit when < 0.8, hold at least 1.5 s. `aligned` when all four ≤ 1.0.
+- `PoseFrame.landmarks` are 0~1 values **already rotated into shot space**: the frame as the saved photo will look (portrait, or landscape when the phone is held sideways). PoseSource (Eungyu) does the rotation using `orientation`.
+- Shot orientation (Eungyu, in PoseSource): |accelerometer roll| > 60° → landscape, < 45° → portrait. In landscape, `rollDeg` is measured from ±90°.
+- `amount` conversion (Eungyu): distance d(m) ≈ 1.65 / (personHeightRatio × 2·tan(fov/2)), fov = 65° vertical in portrait, 50° in landscape; one step = 0.6 m; one fist = 0.1 m; round to 0.5.
+- Instruction order: **orientation** (target ≠ frame → `turnLandscape`/`turnPortrait`) → level → distance → horizontal → height. Enter when |error| > 1.0, exit when < 0.8, hold at least 1.5 s. `aligned` when all four ≤ 1.0.
+- Directions stay body-relative to the photographer in both orientations ("왼쪽으로 한 걸음", "폰을 아래로").
 
 ### Camera → ML Kit conversion recipe (Eungyu and Seojun)
 - Stream format `ImageFormatGroup.nv21`. `InputImageMetadata(rotation: InputImageRotation from sensorOrientation, format: nv21, bytesPerRow: planes[0].bytesPerRow)`.
-- Front camera: mirror x. Portrait locked (`DeviceOrientation.portraitUp`).
+- Front camera: mirror x. UI portrait locked (`DeviceOrientation.portraitUp`); the shot orientation comes from the accelerometer, not the UI.
 
-### Asset formats
-- `categories.json`: `{ "categories":[{"id":"sea","label":"바다","prompts":["a photo of a person standing on a beach", ...],"hashtagIds":["sea","horizon"]}], "hashtags":[{"id":"backlight","label":"#역광","prompts":["a backlit photo of a person"]}] }`
-- `clip/keywords.json`: `{ "model":"clip-vit-base-patch32","dim":512, "categories":{"sea":{"text":[512],"centroid":[512]|null,"n":32}}, "hashtags":{"backlight":{"text":[512],"centroid":[512]|null,"n":12}} }`
-- `compositions.json`: `{ "sea":{"personHeightRatio":0.62,"personCenterX":0.5,"personCenterY":0.58,"horizonY":0.45,"n":32} }` (missing category → defaults 0.6/0.5/0.6)
+### Asset format
+- `recommend.json` (built by `tools/build_assets.py`):
+  ```json
+  { "model": "clip-vit-base-patch32", "dim": 512, "quant": "int8",
+    "levels":   { "portrait": [0.78, 0.66, 0.52, 0.38], "landscape": [0.80, 0.68, 0.55, 0.40] },
+    "fallback": { "portrait": { "1": {"h":0.85,"cx":0.5,"cy":0.55,"hy":null}, "...": {} }, "landscape": { } },
+    "clusters": [ { "o":"p", "e":"<base64 int8 x512>", "n":41,
+                    "lv": { "1": {"h":0.84,"cx":0.5,"cy":0.55,"hy":null,"n":8}, "2": {}, "3": {}, "4": {}, "5": {} } } ] }
+  ```
+  - `levels`: personHeightRatio edges per orientation (quintiles, descending). Level 1 = person largest (인물 중심), 5 = smallest (배경 중심).
+  - `fallback`: median composition per orientation × level (used when CLIP is unavailable).
+  - `clusters`: k-means (k ≈ 64 per orientation) over background embeddings of one-person, full-body photos. `e` = L2-normalized cluster centre, int8 (value × 127). `lv` = median composition of that cluster's photos per level (missing when a level has < 3 photos).
+  - **No per-photo data** (no photo ids, no per-photo embeddings or numbers) goes into the app or the repo: the Unsplash Dataset Terms forbid publishing any portion of the data. Only aggregated clusters and medians.
 
-## 5. CLIP preprocessing and scoring (Seojun)
-- Resize short side to 224 → center crop 224×224 → RGB/255 → mean [0.48145466,0.4578275,0.40821073], std [0.26862954,0.26130258,0.27577711] → `pixel_values [1,3,224,224] float32` → `image_embeds [1,512]` → L2 normalize.
-- Fill person-mask pixels with the image mean color before running CLIP.
-- score = 0.5·cos(text) + 0.5·cos(centroid). Text only when no centroid. Hashtags = top scores above a threshold (start 0.22, tune on device).
+## 5. CLIP and recommendation (Seojun)
+- Preprocessing: resize short side to 224 → center crop 224×224 → RGB/255 → mean [0.48145466,0.4578275,0.40821073], std [0.26862954,0.26130258,0.27577711] → `pixel_values [1,3,224,224] float32` → `image_embeds [1,512]` → L2 normalize. Same in `tools/` and the app.
+- Fill person-mask pixels with the image mean color before running CLIP (we compare **backgrounds**).
+- Recommend: live background embedding → cosine with clusters of the same orientation → top 3 clusters that have the chosen level (else the nearest level) → average of their `lv` medians weighted by cosine × n → `TargetComposition(source: 'recommend:<level>')`. CLIP failure → `fallback`.
 - Model files: bundled `assets/clip/vision_q8.onnx` (copied once to the app directory), downloaded `<appDir>/models/vision_big.onnx`. Same inputs/outputs.
 
+### Training data
+- **Unsplash Lite Dataset 1.4.0** (~25k photos). Its terms (`data/unsplash/raw/TERMS.md`) allow storing the photos and using them to train models; they forbid publishing or redistributing any portion of the data. So: raw files, photos, candidate lists and per-photo numbers stay on the PC; only the aggregated `recommend.json` ships. Credit it in README.
+- **Pexels is not allowed**: its terms forbid automated collection for machine-learning purposes.
+- `tools/unsplash_candidates.py` picks one-person photos by keyword and downloads them to `data/photos/unsplash/`; `build_assets.py` keeps only one-person full-body photos (pose) and builds `recommend.json`. Team photos may be added in `data/photos/team/`.
+
 ## 6. UX rules (from the UI mock)
-- Camera screen (matches the mock): X (reset references, shown only when references exist) and flash at top, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.5 / 1x / 3` that opens a **continuous slider** (every supported level) when dragged sideways, pinch zoom on the preview, category bar evenly spread (selected = rounded fill, suggestions = yellow dot, tap = manual pin), bottom row = **reference slot** · shutter · flip.
+- Camera screen (matches the mock): **mode toggle `추천 | 맞춤` at the top left**, X (reset references, custom mode only, shown when references exist) and flash at top, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.5 / 1x / 3` that opens a **continuous slider** when dragged sideways, pinch zoom, bottom row = **reference slot** · shutter · flip.
+- **Recommend mode**: where the category bar was, a **5-step bar** labelled `인물 중심` … `배경 중심` (default 3). The reference slot is hidden.
+- **Custom mode**: the 5-step bar is hidden; the reference slot is shown.
+- In landscape, icons and the bubble rotate 90° in place (the layout does not move).
 - **Do not draw a person outline.**
-- References: tap the bottom-left slot to pick **one or more** photos. The active one (yellow border) is the target; with several, a sheet lets the user switch, add, remove or clear. **References persist across shots** and are removed only by X / "모두 지우기".
-- **No result screen.** After a shot the photo is saved to the GUDORY album and a toast shows the category and hashtags. A manual category pin is cleared after each shot.
+- References: tap the bottom-left slot to pick **one or more** photos (portrait or landscape). The active one (yellow border) is the target; with several, a sheet lets the user switch, add, remove or clear. **References persist across shots** and are removed only by X / "모두 지우기".
+- **No result screen.** After a shot the photo is saved to the GUDORY album and a short toast confirms it.
 - Auto shutter: when `aligned` holds for 1.0 s → vibrate + capture. The shutter button always works.
 - No empty buttons or "coming soon" screens; drop what does not work. UI text in Korean, no photography jargon ("틸트" → "폰 윗부분을 앞으로").
-- Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, category bar `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.
+- Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, bottom bar (5-step bar) `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.
 
 ## 7. Security and data
 - Lablup key and Vercel tokens never go into the app or the repo. LLM calls only from `api/`, env vars `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - Photos never leave the phone (the LLM receives only instruction templates as text).
-- `data/photos/`, `app/assets/clip/*.onnx`, `*.keystore`, `.env*` are never committed (.gitignore).
+- `data/photos/`, `data/unsplash/`, `app/assets/clip/*.onnx`, `*.keystore`, `.env*` are never committed (.gitignore).
 
 ## 8. Git
-- Branches `feat/camera` `feat/coach` `feat/scene` `feat/tools` `data/labels`. main only via PR; the lead merges (19:30 / 22:00 / 01:00 / 03:00 / 05:30 / 08:00 / 10:30 / 11:00). **Development ends Sunday 11:00**; after that only critical bug fixes.
+- Branches `feat/camera` `feat/coach` `feat/scene` `feat/tools` `data/unsplash`. main only via PR; the lead merges (19:30 / 22:00 / 01:00 / 03:00 / 05:30 / 08:00 / 10:30 / 11:00). **Development ends Sunday 11:00**; after that only critical bug fixes.
 - Commits `feat(coach): ...` / `fix(scene): ...` / `data: ...` / `docs: ...`. Small and often.
 - Before a PR: `cd app && flutter analyze && flutter build apk --debug` must pass.
 - **No commits or pushes after Sunday 12:30.** Do not paste code written before the contest.
