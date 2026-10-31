@@ -37,7 +37,7 @@ api/                                       Taeho
 
 ### models.dart
 ```dart
-enum Axis { level, distance, horizontal, height }
+enum CoachAxis { level, distance, horizontal, height }
 enum Who { camera, subject }
 enum InstructionKey {
   holdPhoneUpright,            // level
@@ -67,11 +67,11 @@ class TargetComposition {
   final String source;            // 'reference' | 'category:<id>'
 }
 class CoachInstruction {
-  final InstructionKey key; final Axis? axis; final Who who;
+  final InstructionKey key; final CoachAxis? axis; final Who who;
   final double amount;            // steps or fists, 0.5 units, min 0.5
   final double error;             // normalized error of the active axis (<= 1.0 = aligned)
   final bool aligned;             // all four axes aligned
-  final Map<Axis, double> errors; // for debug overlay
+  final Map<CoachAxis, double> errors; // for debug overlay
 }
 class CategoryGuess {
   final String primaryId; final List<String> suggestedIds; // max 2
