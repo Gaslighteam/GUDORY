@@ -7,9 +7,10 @@ class FakeReferenceAnalyzer implements ReferenceAnalyzer {
   Future<TargetComposition> analyze(String imagePath) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     return const TargetComposition(
-      personHeightRatio: 0.6,
+      framing: Framing.kneeUp,
+      personHeightRatio: 0.72,
       personCenterX: 0.5,
-      personCenterY: 0.6,
+      personCenterY: 0.28,
       source: 'reference',
     );
   }

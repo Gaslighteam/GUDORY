@@ -41,6 +41,10 @@ class FakeRecommender implements Recommender {
     final m = byLevel?['$level'] as Map<String, dynamic>?;
     if (m == null) return TargetComposition.fallback;
     return TargetComposition(
+      framing: Framing.values.firstWhere(
+        (f) => f.name == m['f'],
+        orElse: () => Framing.fullBody,
+      ),
       personHeightRatio: (m['h'] as num).toDouble(),
       personCenterX: (m['cx'] as num).toDouble(),
       personCenterY: (m['cy'] as num).toDouble(),

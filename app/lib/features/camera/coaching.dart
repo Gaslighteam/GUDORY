@@ -111,6 +111,7 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
       return current;
     }
     return TargetComposition(
+      framing: TargetComposition.fallback.framing,
       personHeightRatio: TargetComposition.fallback.personHeightRatio,
       personCenterX: TargetComposition.fallback.personCenterX,
       personCenterY: TargetComposition.fallback.personCenterY,
