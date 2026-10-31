@@ -82,6 +82,7 @@ class TargetComposition {
 }
 class Recommendation {
   final TargetComposition target;
+  final TargetComposition? left, right; // side-specific targets from the same clusters (subject cx < 0.45 / > 0.55); null when < 3 photos
   final int neighbors;            // photos behind the target (0 = fallback median only, no CLIP)
   final String modelVariant;      // 'q8' | 'fp16' | 'none'
 }
@@ -141,7 +142,10 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
     "levels":   { "portrait": [0.30, 0.17, 0.10, 0.06], "landscape": [0.32, 0.18, 0.11, 0.07] },
     "fallback": { "portrait": { "1": {"f":"chestUp","h":0.62,"cx":0.5,"cy":0.33,"hy":null}, "...": {} }, "landscape": { } },
     "clusters": [ { "o":"p", "e":"<base64 int8 x512>", "n":41,
-                    "lv": { "1": {"f":"waistUp","h":0.70,"cx":0.5,"cy":0.30,"hy":null,"n":8}, "2": {}, "3": {}, "4": {}, "5": {} } } ] }
+                    "lv": { "1": {"f":"waistUp","h":0.70,"cx":0.5,"cy":0.30,"hy":null,"n":8,
+                                  "L": {"h":0.68,"cx":0.31,"cy":0.30,"hy":null,"n":4},
+                                  "R": {"h":0.71,"cx":0.70,"cy":0.31,"hy":null,"n":3} },
+                            "2": {}, "3": {}, "4": {}, "5": {} } } ] }
   ```
   - **Person scale** s = (head top ~ shoulder mid) / frame height — measurable in every framing. `levels` = quintile edges of s per orientation (descending). Level 1 = person largest (인물 중심, mostly `chestUp`/`waistUp`), 5 = smallest (배경 중심, mostly `fullBody`).
   - `f` = the most common framing of those photos; `h` = median span **at that framing**, `cx`/`cy`/`hy` = medians.
@@ -153,6 +157,8 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 - Preprocessing: resize short side to 224 → center crop 224×224 → RGB/255 → mean [0.48145466,0.4578275,0.40821073], std [0.26862954,0.26130258,0.27577711] → `pixel_values [1,3,224,224] float32` → `image_embeds [1,512]` → L2 normalize. Same in `tools/` and the app.
 - Fill person-mask pixels with the image mean color before running CLIP (we compare **backgrounds**).
 - Recommend: live background embedding → cosine with clusters of the same orientation → top 3 clusters that have the chosen level (else the nearest level) → framing = the top cluster's `f`; average the `lv` medians of clusters with that framing, weighted by cosine × n → `TargetComposition(source: 'recommend:<level>')`. CLIP failure → `fallback`.
+- **Side targets (left / right):** `build_assets.py` also stores, per cluster × level, the medians of the photos with subject `cx < 0.45` (`"L"`) and `cx > 0.55` (`"R"`), same framing, with their counts (optional fields; old parsers ignore them). The recommender blends the same top clusters' `L` (and `R`) groups the same way → `Recommendation.left` / `.right`, or null when that side's photo count is < 3.
+- **Choosing the side (lead, `coaching.dart`):** the live subject's shoulder-midpoint x (visible-crop space) picks the side: < 0.45 → `left` if non-null, > 0.55 → `right` if non-null, else `target`. The side is held until the level or orientation changes, or the subject stays past the other side for > 2 s, so instructions don't flip-flop.
 - Model files: bundled `assets/clip/vision_q8.onnx` (copied once to the app directory), downloaded `<appDir>/models/vision_big.onnx`. Same inputs/outputs.
 
 ### Training data

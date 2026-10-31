@@ -128,9 +128,19 @@ class Recommendation {
     required this.target,
     required this.neighbors,
     required this.modelVariant,
+    this.left,
+    this.right,
   });
 
+  /// Overall target (all photos of the matched clusters).
   final TargetComposition target;
+
+  /// Same matched clusters, only photos whose subject stood on the left
+  /// (`cx < 0.45`) / right (`cx > 0.55`) of the frame. null when that side
+  /// has fewer than 3 photos. Coaching picks the side the live subject is
+  /// already on, so a composition the user framed on purpose is kept.
+  final TargetComposition? left;
+  final TargetComposition? right;
 
   /// Photos behind the target (0 = fallback median only, no CLIP).
   final int neighbors;
