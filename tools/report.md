@@ -2,51 +2,51 @@
 
 Aggregate output only. No photo names, IDs, paths, measurements or per-photo embeddings.
 
-Processed: 797; pose accepted: 552; background embeddings accepted: 548; rejected: 249.
+Processed: 861; pose accepted: 588; background embeddings accepted: 584; rejected: 277.
 Source weights: team 3; supplementary 1.
-recommend.json: 23,478 bytes (limit < 1,000,000 bytes).
+recommend.json: 23,888 bytes (limit < 1,000,000 bytes).
 
 ## Filters and source counts
 
 Aggregate | Count
 --- | ---:
-accepted | 548
+accepted | 584
 accepted_source/supplementary | 540
-accepted_source/team | 8
-pose_accepted | 552
-processed | 797
-rejected | 249
-rejected/pose/ambiguous_person_count | 172
-rejected/pose/invalid_measurements | 20
+accepted_source/team | 44
+pose_accepted | 588
+processed | 861
+rejected | 277
+rejected/pose/ambiguous_person_count | 195
+rejected/pose/invalid_measurements | 21
 rejected/pose/person_pose_mismatch | 6
-rejected/pose/pose_count_mismatch | 47
+rejected/pose/pose_count_mismatch | 51
 rejected/segmentation | 4
-source_orientation/landscape | 521
+source_orientation/landscape | 528
 source_orientation/near_square | 52
-source_orientation/portrait | 224
+source_orientation/portrait | 281
 
 ## portrait
 
-Photos: 206; weighted mass: 222; exported clusters: 8; clusters without supported levels omitted: 1.
+Photos: 238; weighted mass: 318; exported clusters: 8; clusters without supported levels omitted: 2.
 
 Level | Photos | Weighted mass | chestUp | waistUp | kneeUp | fullBody
 --- | ---: | ---: | ---: | ---: | ---: | ---:
-1 | 39 | 45 | 19 | 10 | 8 | 2
-2 | 40 | 44 | 2 | 15 | 11 | 12
-3 | 39 | 45 | 0 | 7 | 4 | 28
-4 | 44 | 44 | 1 | 9 | 2 | 32
-5 | 44 | 44 | 0 | 3 | 0 | 41
+1 | 50 | 64 | 20 | 15 | 11 | 4
+2 | 49 | 65 | 1 | 19 | 11 | 18
+3 | 50 | 62 | 1 | 10 | 4 | 35
+4 | 42 | 64 | 0 | 10 | 2 | 30
+5 | 47 | 63 | 0 | 3 | 2 | 42
 
 Cluster size (actual photos) | Number of clusters
 --- | ---:
 5 | 1
-21 | 1
-24 | 1
-26 | 1
-28 | 1
+8 | 1
+23 | 1
 30 | 1
 31 | 1
-38 | 1
+33 | 1
+39 | 1
+56 | 1
 
 Fallback target level | Levels pooled (nearest first)
 --- | ---
@@ -58,29 +58,31 @@ Fallback target level | Levels pooled (nearest first)
 
 ## landscape
 
-Photos: 342; weighted mass: 342; exported clusters: 14; clusters without supported levels omitted: 3.
+Photos: 346; weighted mass: 354; exported clusters: 14; clusters without supported levels omitted: 2.
 
 Level | Photos | Weighted mass | chestUp | waistUp | kneeUp | fullBody
 --- | ---: | ---: | ---: | ---: | ---: | ---:
-1 | 69 | 69 | 34 | 25 | 7 | 3
-2 | 68 | 68 | 5 | 24 | 16 | 23
-3 | 69 | 69 | 0 | 16 | 10 | 43
-4 | 68 | 68 | 0 | 13 | 12 | 43
-5 | 68 | 68 | 0 | 12 | 6 | 50
+1 | 71 | 71 | 36 | 25 | 7 | 3
+2 | 69 | 71 | 3 | 26 | 16 | 24
+3 | 69 | 71 | 0 | 16 | 11 | 42
+4 | 67 | 71 | 0 | 15 | 10 | 42
+5 | 70 | 70 | 0 | 12 | 7 | 51
 
 Cluster size (actual photos) | Number of clusters
 --- | ---:
-14 | 2
+7 | 1
+9 | 1
+12 | 1
+13 | 1
 15 | 1
-18 | 2
-19 | 1
+20 | 1
 21 | 1
-22 | 2
-24 | 1
+23 | 1
 27 | 1
-29 | 1
-38 | 1
-40 | 1
+28 | 1
+32 | 1
+37 | 2
+56 | 1
 
 Fallback target level | Levels pooled (nearest first)
 --- | ---
@@ -131,15 +133,15 @@ statistics are never loaded as training input. This baseline is read only for re
 
 Metric | Fixed baseline | Current | Change
 --- | ---: | ---: | ---:
-processed | 797 | 797 | +0
-pose_accepted | 552 | 552 | +0
-clip_accepted | 548 | 548 | +0
-portrait_photos | 206 | 206 | +0
-landscape_photos | 342 | 342 | +0
+processed | 797 | 861 | +64
+pose_accepted | 552 | 588 | +36
+clip_accepted | 548 | 584 | +36
+portrait_photos | 206 | 238 | +32
+landscape_photos | 342 | 346 | +4
 portrait_clusters | 8 | 8 | +0
 landscape_clusters | 14 | 14 | +0
-json_bytes | 23478 | 23478 | +0
+json_bytes | 23478 | 23888 | +410
 
 Configuration matches fixed baseline: yes.
-Aggregate asset SHA-256 matches fixed baseline: yes.
+Aggregate asset SHA-256 matches fixed baseline: no.
 The fixed baseline is never overwritten automatically. No photo IDs or per-photo history are stored.
