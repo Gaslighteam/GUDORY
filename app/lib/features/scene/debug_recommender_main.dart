@@ -60,6 +60,10 @@ class _PageState extends ConsumerState<_Page> with WidgetsBindingObserver {
         if (_missingAsset) throw StateError('QA missing asset');
         return rootBundle.loadString('assets/recommend.json');
       },
+      loadModelAsset: () {
+        if (_missingAsset) throw StateError('QA missing asset');
+        return rootBundle.loadString('assets/recommend_v2.json');
+      },
       viewForFrame: (_, _) => SceneView(
         quarterTurns: ref.read(heldOrientationProvider).quarterTurns,
       ),
