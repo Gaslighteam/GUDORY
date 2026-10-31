@@ -108,8 +108,8 @@ void main() {
       },
     );
 
-    test('nose and both shoulders must be visible and finite', () {
-      for (final index in [0, 11, 12]) {
+    test('both shoulders must be visible and finite', () {
+      for (final index in [11, 12]) {
         final points = List<Landmark>.of(pose().landmarks!);
         final old = points[index];
         points[index] = Landmark(x: old.x, y: old.y, visibility: 0.49);
@@ -118,6 +118,24 @@ void main() {
       final points = List<Landmark>.of(pose().landmarks!);
       points[11] = const Landmark(x: double.nan, y: 0.3, visibility: 1);
       expect(measureComposition(frame(points)), isNull);
+    });
+
+    test('back view: low-visibility nose and eyes are still measured', () {
+      final points = List<Landmark>.of(pose().landmarks!);
+      for (final index in [0, 2, 5]) {
+        final old = points[index];
+        points[index] = Landmark(x: old.x, y: old.y, visibility: 0.05);
+      }
+      final back = measureComposition(frame(points));
+      final front = measureComposition(pose());
+      expect(back, isNotNull);
+      expect(back!.topOfHeadY, front!.topOfHeadY);
+      expect(back.personCenterY, front.personCenterY);
+      for (final index in [0, 2, 5]) {
+        final missing = List<Landmark>.of(points);
+        missing[index] = const Landmark(x: 0, y: 0, visibility: 0);
+        expect(measureComposition(frame(missing)), isNull);
+      }
     });
 
     test(

@@ -82,7 +82,7 @@ void main() {
         'required joint $index needs visibility, finite coordinates and image bounds',
         () {
           for (final invalid in [
-            const Landmark(x: 0.4, y: 0.2, visibility: 0.49),
+            Landmark(x: 0.4, y: 0.2, visibility: index > 5 ? 0.49 : 0),
             const Landmark(x: double.nan, y: 0.2, visibility: 1),
             const Landmark(x: 0.4, y: double.infinity, visibility: 1),
             const Landmark(x: 0.4, y: 0.2, visibility: double.nan),
@@ -95,6 +95,15 @@ void main() {
           }
         },
       );
+
+      if (index <= 5) {
+        test('head point $index at low visibility is accepted (back view)', () {
+          final points = landmarks();
+          final old = points[index];
+          points[index] = Landmark(x: old.x, y: old.y, visibility: 0.05);
+          expect(targetFrom(points).framing, Framing.fullBody);
+        });
+      }
 
       test('required joint $index visibility exactly 0.5 is accepted', () {
         final points = landmarks();
