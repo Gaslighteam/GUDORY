@@ -16,6 +16,7 @@ class RoundIconButton extends StatelessWidget {
     this.size = 48,
     this.color,
     this.tooltip,
+    this.quarterTurns = 0,
   });
 
   final IconData icon;
@@ -23,6 +24,9 @@ class RoundIconButton extends StatelessWidget {
   final double size;
   final Color? color;
   final String? tooltip;
+
+  /// Landscape: the icon turns in place; the button does not move.
+  final int quarterTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -35,11 +39,15 @@ class RoundIconButton extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: size * 0.52,
-            semanticLabel: tooltip,
+          child: AnimatedRotation(
+            turns: quarterTurns / 4,
+            duration: const Duration(milliseconds: 250),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: size * 0.52,
+              semanticLabel: tooltip,
+            ),
           ),
         ),
       ),
@@ -313,9 +321,11 @@ class BottomBar extends StatelessWidget {
     required this.onFlip,
     required this.armed,
     required this.busy,
+    this.quarterTurns = 0,
   });
 
   final Widget reference;
+  final int quarterTurns;
   final VoidCallback? onShutter;
   final VoidCallback? onFlip;
 
@@ -364,6 +374,7 @@ class BottomBar extends StatelessWidget {
                       size: 56,
                       color: const Color(0xFF2C2C2E),
                       tooltip: '카메라 전환',
+                      quarterTurns: quarterTurns,
                     ),
                   ),
           ),
