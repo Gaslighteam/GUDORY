@@ -11,10 +11,10 @@ InThon 2026 · Theme "감각 (sense)" · Team Gaslighteam
 The person you hand your phone to is not short on skill — they are short on your sense. In the 30 seconds they give you, a translucent overlay does not tell them what to fix first.
 
 ## Solution
-Compute the error on each axis and say **only the biggest one**, in words a body can act on ("one step back", "lower the phone by one fist"), as voice, beeps and vibration. When it matches, the shot is taken automatically. The target comes from one of two modes.
+Compute the error on each axis and say **only the biggest one**, in words a body can act on ("one step back", "lower the phone by one fist"), on screen, with beeps that speed up as it gets closer and a vibration when it lines up. When it matches, the shot is taken automatically. The target comes from one of two modes.
 
 ## Features
-1. **Sense coaching** — pose estimation + sensors compute four axes (level, distance, horizontal, height); one instruction at a time via voice, beeps and haptics. Portrait and landscape shots.
+1. **Sense coaching** — pose estimation + sensors compute four axes (level, distance, horizontal, height); one on-screen instruction at a time, with proximity beeps and haptics. Portrait and landscape shots.
 2. **추천 모드 (recommend)** — CLIP reads the background, finds similar well-shot photos of one person, and proposes their composition. A 5-step bar chooses 인물 중심 ↔ 배경 중심.
 3. **맞춤 모드 (custom)** — load one or more reference photos; the active one's composition becomes the target.
 
