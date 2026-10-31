@@ -1,7 +1,7 @@
 // Contract data types. Only the team lead edits this file. See AGENTS.md §4.
 import 'package:camera/camera.dart';
 
-enum Axis { level, distance, horizontal, height }
+enum CoachAxis { level, distance, horizontal, height }
 
 enum Who { camera, subject }
 
@@ -102,7 +102,7 @@ class CoachInstruction {
   });
 
   final InstructionKey key;
-  final Axis? axis;
+  final CoachAxis? axis;
   final Who who;
 
   /// Steps or fists, in 0.5 units, minimum 0.5.
@@ -115,7 +115,7 @@ class CoachInstruction {
   final bool aligned;
 
   /// For debug overlay.
-  final Map<Axis, double> errors;
+  final Map<CoachAxis, double> errors;
 }
 
 class CategoryGuess {

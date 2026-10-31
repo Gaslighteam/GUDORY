@@ -2,13 +2,21 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/camera/camera_screen.dart';
+import '../features/camera/result_screen.dart';
+import '../features/camera/shot_state.dart';
 import 'theme.dart';
 
 final _router = GoRouter(
   routes: [
-    GoRoute(path: '/', builder: (_, _) => const _PlaceholderHome()),
-    // Feature routes are wired here by the lead as modules land:
-    // '/camera' (camera), '/result' (camera), '/debug/pose' (coach), '/debug/scene' (scene)
+    GoRoute(path: '/', builder: (context, state) => const CameraScreen()),
+    GoRoute(
+      path: '/result',
+      builder: (context, state) =>
+          ResultScreen(shot: state.extra! as ShotResult),
+    ),
+    // Debug routes are added here by the lead as modules land:
+    // '/debug/pose' (coach), '/debug/scene' (scene)
   ],
 );
 
@@ -22,20 +30,6 @@ class GudoryApp extends StatelessWidget {
       theme: buildTheme(),
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
-/// Temporary first screen until the camera screen lands. Shows the theme keyword.
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('사진 감각, 빌려드릴게요', style: TextStyle(fontSize: 20)),
-      ),
     );
   }
 }
