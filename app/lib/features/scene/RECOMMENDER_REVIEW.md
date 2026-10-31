@@ -1,5 +1,11 @@
 # Dart Recommender implementation checkpoint
 
+Latest follow-up: `LANDSCAPE_DIAGNOSIS.md` records successful indoor landscape
+matching in both directions, the confirmed resize mismatch and Scene-only
+correction, 297 passing tests and the physical Android 9/9 synthetic RGB gate.
+Historical pending/verification statements below describe the initial snapshot;
+street/open-sky quality, full end-to-end parity and production wiring remain open.
+
 Draft implementation on `feat/scene`; landscape and production integration are
 not fully verified. Existing Scene work is preserved. Main was fast-forwarded
 to `e897ddb` for submission, including PR #29's asset, Coach integration and

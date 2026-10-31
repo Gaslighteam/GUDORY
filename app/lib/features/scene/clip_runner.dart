@@ -8,6 +8,7 @@ import 'package:onnxruntime/onnxruntime.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/contracts.dart';
+import 'clip_resize.dart';
 
 /// Verified against the downloaded Xenova vision_model_quantized.onnx graph.
 /// The graph's input axes are symbolic; CLIP ViT-B/32 uses this concrete shape.
@@ -70,11 +71,10 @@ img.Image clipImageCrop(img.Image image) {
       .bakeOrientation(image)
       .convert(numChannels: 3, format: img.Format.uint8);
   final scale = 224 / math.min(rgb.width, rgb.height);
-  final resized = img.copyResize(
+  final resized = resizeClipRgb(
     rgb,
-    width: rgb.width <= rgb.height ? 224 : (rgb.width * scale).floor(),
-    height: rgb.height <= rgb.width ? 224 : (rgb.height * scale).floor(),
-    interpolation: img.Interpolation.cubic,
+    rgb.width <= rgb.height ? 224 : (rgb.width * scale).floor(),
+    rgb.height <= rgb.width ? 224 : (rgb.height * scale).floor(),
   );
   return img.copyCrop(
     resized,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,6 +12,7 @@ import '../camera/camera_service.dart';
 import '../camera/shot_orientation.dart';
 import 'recommender.dart';
 import 'scene_embedding.dart';
+import 'clip_parity_check.dart';
 
 /// Standalone QA entry point. No shared router/provider is replaced.
 void main() {
@@ -76,6 +78,9 @@ class _PageState extends ConsumerState<_Page> with WidgetsBindingObserver {
 
   Future<void> _start() async {
     try {
+      debugPrint(
+        'SCENE PREPROCESS PARITY ${await compute(checkClipRgbParity, null)}',
+      );
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
       ]);
