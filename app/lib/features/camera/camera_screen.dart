@@ -37,6 +37,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   /// "Aligned" must hold this long before the auto shutter fires.
   static const _holdBeforeShot = Duration(seconds: 1);
 
+  /// X / flash diameter (~10% of the screen width in the mock).
+  static const _topButton = 44.0;
+
   CameraService get _camera => ref.read(cameraServiceProvider);
   SensoryFeedback get _feedback => ref.read(feedbackProvider);
 
@@ -208,32 +211,42 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                             ),
                     ),
                   ),
-                  SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                      child: Row(
-                        children: [
-                          if (reference.isEmpty)
-                            const SizedBox(width: 48)
-                          else
+                  // Pinned to the top: inside an expanded Stack an unpositioned
+                  // Row would stretch and center its buttons vertically.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Row(
+                          children: [
+                            if (reference.isEmpty)
+                              const SizedBox(width: _topButton)
+                            else
+                              RoundIconButton(
+                                icon: Icons.close,
+                                onPressed: _resetReferences,
+                                size: _topButton,
+                                tooltip: '레퍼런스 초기화',
+                              ),
+                            const Spacer(),
                             RoundIconButton(
-                              icon: Icons.close,
-                              onPressed: _resetReferences,
-                              tooltip: '레퍼런스 초기화',
+                              icon: switch (camera.flashMode) {
+                                FlashMode.auto => Icons.flash_auto,
+                                FlashMode.always => Icons.flash_on,
+                                _ => Icons.flash_off,
+                              },
+                              onPressed: camera.isReady
+                                  ? camera.cycleFlash
+                                  : null,
+                              size: _topButton,
+                              tooltip: '플래시',
                             ),
-                          const Spacer(),
-                          RoundIconButton(
-                            icon: switch (camera.flashMode) {
-                              FlashMode.auto => Icons.flash_auto,
-                              FlashMode.always => Icons.flash_on,
-                              _ => Icons.flash_off,
-                            },
-                            onPressed: camera.isReady
-                                ? camera.cycleFlash
-                                : null,
-                            tooltip: '플래시',
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
