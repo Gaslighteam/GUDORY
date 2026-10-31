@@ -8,6 +8,7 @@ import '../../core/models.dart';
 import 'framing.dart';
 import 'shot_orientation.dart';
 import 'shot_state.dart';
+import 'side_picker.dart';
 
 final coachingProvider = NotifierProvider<CoachingNotifier, CoachInstruction?>(
   CoachingNotifier.new,
@@ -20,7 +21,8 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
 
   // Recommend mode: latest recommendation and what it was computed for.
   CameraFrame? _lastFrame;
-  TargetComposition? _recommended;
+  Recommendation? _recommended;
+  final _sides = SidePicker();
   int? _recLevel;
   ShotOrientation? _recOrientation;
   DateTime _recAt = DateTime(0);
@@ -65,18 +67,19 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
       final bus = ref.watch(frameBusProvider);
       _frames = bus.frames.listen((frame) => _lastFrame = frame);
       _poses = poseSource.poses(bus).listen((frame) {
-        final target = _target(frame.orientation);
-        if (target == null) {
-          state = _addReference;
-          return;
-        }
         // Same space as the saved photo: the visible part of the frame,
         // rotated like the photo when the phone is held sideways.
         final crop = cropInShotSpace(
           ref.read(visibleCropProvider),
           ref.read(heldOrientationProvider).quarterTurns,
         );
-        state = engine.update(toVisible(frame, crop), target);
+        final visible = toVisible(frame, crop);
+        final target = _target(visible);
+        if (target == null) {
+          state = _addReference;
+          return;
+        }
+        state = engine.update(visible, target);
       });
     }
     return _needsReference() ? _addReference : null;
@@ -97,8 +100,10 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
   }
 
   /// custom → active reference (null = ask for one);
-  /// recommend → latest recommendation for the level and orientation.
-  TargetComposition? _target(ShotOrientation orientation) {
+  /// recommend → latest recommendation for the level and orientation, on the
+  /// side of the frame the subject is already on when the data supports it.
+  TargetComposition? _target(PoseFrame frame) {
+    final orientation = frame.orientation;
     final mode = ref.read(modeProvider);
     if (mode.mode == ShootMode.custom) {
       return ref.read(referenceProvider).active?.target;
@@ -112,7 +117,11 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
     if (current != null &&
         _recLevel == mode.level &&
         _recOrientation == orientation) {
-      return current;
+      final side = _sides.update(shoulderMidX(frame), DateTime.now(), (
+        mode.level,
+        orientation,
+      ));
+      return SidePicker.pick(current, side);
     }
     return TargetComposition(
       framing: TargetComposition.fallback.framing,
@@ -143,7 +152,7 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
       final rec = await ref
           .read(recommenderProvider)
           .recommend(frame, level, orientation);
-      _recommended = rec.target;
+      _recommended = rec;
       _recLevel = level;
       _recOrientation = orientation;
       _recAt = DateTime.now();
@@ -156,6 +165,7 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
 
   void reset() {
     _demo?.cancel();
+    _sides.reset();
     ref.read(coachEngineProvider)?.reset();
     state = _needsReference() ? _addReference : null;
   }
