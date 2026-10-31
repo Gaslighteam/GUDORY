@@ -109,6 +109,7 @@ abstract class ModelManager { Future<String> ensureBest(); String get activeVari
 abstract class FeedbackService { void announce(CoachInstruction i, String lang); void proximity(double error); void aligned(); void stop(); } // Taeho
 ```
 - `PoseFrame.landmarks` are 0~1 values **already rotated into shot space**: the frame as the saved photo will look (portrait, or landscape when the phone is held sideways). PoseSource (Eungyu) does the rotation using `orientation`.
+- Shot space = the part of the camera frame **visible in the preview** (`visibleCropProvider` in `features/camera/framing.dart`); the saved photo is exactly that crop, so landmarks are 0~1 inside it.
 - Shot orientation: **use `core/orientation.dart`** (shared by PoseSource and the UI): `nextHeldOrientation(current, ax, ay)` (|roll| > 60° → landscape, < 45° → portrait, flat guard), `accelRollDeg(ax, ay)` (+ = top tilted left), `levelRollDeg(roll, held)` (landscape measured from ±90° → `PoseFrame.rollDeg`), `isRollReliable(ax, ay)` (→ `PoseFrame.rollReliable`; false while flat: keep the last reliable `rollDeg` and skip the level axis). `HeldOrientation.quarterTurns`: 1 = top to the left, -1 = top to the right.
 - Framing and body span (Eungyu and Seojun use **the same formulas**; head top = nose y − 1.0 × (shoulder-mid y − nose y) / 2, written once in `features/coach/composition_math.dart` and ported to Python):
 
@@ -154,6 +155,7 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 - **Primary: `data/photos/team/`** — photos taken by team members, and by friends who gave permission (Bomin collects). These match the target style best.
 - **Supplementary (to be decided by Bomin after a test):** Open Images V7 (Flickr, CC BY 2.0) one-person photos ranked by CLIP for "phone snapshot" style, or Unsplash Lite (too many studio portraits; only ~100 phone shots). Whatever is used: raw files, photos and per-photo numbers stay on the PC; only the aggregated `recommend.json` ships; credit it in README.
 - `build_assets.py` should weight team photos above supplementary ones.
+- Square photos (w/h between 0.9 and 1.1, e.g. Instagram crops): after pose detection, centre-crop to portrait 3:4; if the nose or a shoulder falls outside, centre-crop to landscape 4:3 instead; if both cut the person, drop the photo. Crop around the **image centre**, not the person, so the photographer's composition is kept.
 - **Pexels is not allowed**: its terms forbid automated collection for machine-learning purposes.
 - `build_assets.py` keeps one-person photos whose head and shoulders are visible (pose), classifies the framing, and builds `recommend.json`.
 

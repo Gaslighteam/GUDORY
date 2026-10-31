@@ -13,7 +13,7 @@ Target style: everyday / travel photos **as people post on Instagram** — one p
 
 ## Rules for `photos/team/`
 - One person, head and shoulders visible. Chest-up, waist-up, knee-up and full body are all welcome; portrait and landscape both.
-- Original files from the phone are best. Instagram downloads are fine too (cropped, but used as they are).
+- Original files from the phone are best. Instagram downloads are fine too; square ones are centre-cropped to 3:4 or 4:3 by `build_assets.py`.
 - Friends' photos only with the permission of the person who took them. No other internet photos. **Pexels is not allowed** (its terms forbid collection for machine learning).
 - No label file: orientation comes from the image size; `build_assets.py` checks one person and the framing with pose detection.
 - Aim for **100–200** photos so every level (5) × orientation has enough.

@@ -21,7 +21,7 @@ The team changed the product structure. `git pull` (or check out `docs/recommend
 
 ## Step 1 — `tools/build_assets.py` (rewrite)
 Input: every image under `data/photos/` (recursively). `team/` photos get weight 3, others 1 (CLI flags).
-1. Orientation from EXIF-corrected size (h > w → portrait).
+1. Orientation from EXIF-corrected size (h > w → portrait). Square photos (w/h between 0.9 and 1.1, e.g. Instagram crops): after pose detection, centre-crop to portrait 3:4; if the nose or a shoulder falls outside, centre-crop to landscape 4:3 instead; if both cut the person, drop the photo. Crop around the **image centre**, not the person, so the photographer's composition is kept.
 2. Pose (mediapipe): keep photos with **exactly one person** whose nose and both shoulders are visible (≥ 0.5). Framing = lowest visible anchor (shoulders / hips / knees / ankles). Compute `f`, `h` (span at that framing), `s` (person scale), `cx` (shoulder mid x), `cy` (eye line y), `hy` (horizon, null unless cheap) with **the same formulas as Eungyu's `composition_math.dart`** (AGENTS.md §4 table) — copy them exactly.
 3. Selfie segmentation → fill person pixels with the mean colour → CLIP (`openai/clip-vit-base-patch32`, preprocessing per §5) → L2-normalized background embedding.
 4. Per orientation: `levels` = weighted quintile edges of `s` (descending). `fallback` per level = most common framing `f` + medians of `h`/`cx`/`cy`/`hy` over the photos with that framing.
