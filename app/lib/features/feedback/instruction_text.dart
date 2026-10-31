@@ -7,9 +7,6 @@ enum ArrowDirection { none, left, right, up, down, back, forward }
 /// Languages a photographer can pick when the phone is handed over.
 const photographerLanguages = {'ko': '한국어', 'en': 'English', 'ja': '日本語'};
 
-/// TTS locale per language.
-const ttsLocales = {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP'};
-
 abstract final class InstructionText {
   /// Sentence for [key] with [amount] (steps or fists, 0.5 units).
   static String of(InstructionKey key, double amount, [String lang = 'ko']) =>

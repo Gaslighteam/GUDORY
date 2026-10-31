@@ -81,25 +81,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   }
 
   void _onInstruction(CoachInstruction? previous, CoachInstruction? next) {
-    // "Add a reference" is shown in the bubble only: no voice, beeps or shot.
+    // "Add a reference" is shown in the bubble only: no beeps or shot.
     if (next == null || next.key == InstructionKey.addReference) {
       _autoShutter?.cancel();
       _feedback.stop();
       return;
     }
-    // "No person" is a status, not a move: say it once when it starts, then
-    // keep it on screen only (no 4-second repeats, no beeps).
+    // "No person" is a status, not a move: on screen only, no beeps.
     if (next.key == InstructionKey.noPerson) {
       _autoShutter?.cancel();
-      if (previous?.key != InstructionKey.noPerson) {
-        _feedback.stop();
-        _feedback.announce(next, _lang);
-      }
+      _feedback.stop();
       return;
     }
     if (next.aligned) {
       if (previous?.aligned != true) {
-        _feedback.announce(next, _lang);
         _feedback.aligned();
         _autoShutter?.cancel();
         _autoShutter = Timer(_holdBeforeShot, _capture);
@@ -107,7 +102,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       return;
     }
     _autoShutter?.cancel();
-    _feedback.announce(next, _lang);
     _feedback.proximity(next.error);
   }
 
@@ -140,7 +134,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       if (handover.active && saved) {
         final done = InstructionText.handoverDone(handover.lang);
         _showNote(done, const Duration(seconds: 4));
-        _feedback.say(done, handover.lang);
       } else {
         _toast(saved ? '앨범에 저장했어요' : '사진을 저장하지 못했어요');
       }
@@ -188,7 +181,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     return handover.active ? handover.lang : 'ko';
   }
 
+  /// Custom mode coaches toward a reference, so handing the phone over
+  /// without one would leave the photographer on an empty prompt.
+  bool get _handoverBlocked =>
+      ref.read(modeProvider).mode == ShootMode.custom &&
+      ref.read(referenceProvider).isEmpty;
+
   Future<void> _startHandover() async {
+    if (_handoverBlocked) {
+      _toast('레퍼런스 사진을 먼저 추가해 주세요');
+      return;
+    }
     final lang = await pickPhotographerLanguage(
       context,
       ref.read(handoverProvider).lang,
@@ -197,7 +200,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     ref.read(handoverProvider.notifier).start(lang);
     final guide = InstructionText.handoverGuide(lang);
     _showNote(guide, const Duration(seconds: 3));
-    _feedback.say(guide, lang);
   }
 
   void _endHandover() {
@@ -336,12 +338,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                           ),
                                         ],
                                         const Spacer(),
-                                        RoundIconButton(
-                                          icon: Icons.front_hand_outlined,
-                                          onPressed: _startHandover,
-                                          size: _topButton,
-                                          tooltip: '폰 건네기',
-                                          quarterTurns: turns,
+                                        Opacity(
+                                          opacity: custom && reference.isEmpty
+                                              ? 0.4
+                                              : 1,
+                                          child: RoundIconButton(
+                                            icon: Icons.front_hand_outlined,
+                                            onPressed: _startHandover,
+                                            size: _topButton,
+                                            tooltip: '폰 건네기',
+                                            quarterTurns: turns,
+                                          ),
                                         ),
                                         const SizedBox(width: 10),
                                         RoundIconButton(
