@@ -26,8 +26,7 @@ class MlKitPoseSource implements PoseSource {
   bool _active = false;
   bool _disposed = false;
   int? _lastStarted;
-  double _roll = 0;
-  double _pitch = 0;
+  ShotAttitude _attitude = const ShotAttitude.initial();
 
   @override
   Stream<PoseFrame> poses(FrameBus bus) {
@@ -41,8 +40,12 @@ class MlKitPoseSource implements PoseSource {
             accelerometerEventStream(
               samplingPeriod: SensorInterval.gameInterval,
             ).listen((event) {
-              _roll = rollDegrees(event.x, event.y);
-              _pitch = pitchDegrees(event.x, event.y, event.z);
+              _attitude = updateShotAttitude(
+                _attitude,
+                ax: event.x,
+                ay: event.y,
+                az: event.z,
+              );
             }, onError: output.addError);
         _frames = bus.frames.listen(
           (frame) {
@@ -72,9 +75,18 @@ class MlKitPoseSource implements PoseSource {
     StreamController<PoseFrame> output,
   ) async {
     try {
+      final attitude = _attitude;
+      final at = DateTime.now();
       final image = frame.image;
+      final geometry = shotImageGeometry(
+        sensorOrientation: frame.sensorOrientation,
+        isFrontCamera: frame.isFrontCamera,
+        quarterTurns: attitude.quarterTurns,
+        rawWidth: image.width,
+        rawHeight: image.height,
+      );
       final rotation = ml.InputImageRotationValue.fromRawValue(
-        frame.sensorOrientation,
+        geometry.rotationDegrees,
       );
       if (rotation == null ||
           image.format.group != ImageFormatGroup.nv21 ||
@@ -92,13 +104,8 @@ class MlKitPoseSource implements PoseSource {
           bytesPerRow: image.planes[0].bytesPerRow,
         ),
       );
-      final swap =
-          frame.sensorOrientation == 90 || frame.sensorOrientation == 270;
-      final width = swap ? image.height : image.width;
-      final height = swap ? image.width : image.height;
-      final at = DateTime.now();
-      final roll = _roll;
-      final pitch = _pitch;
+      final width = geometry.width;
+      final height = geometry.height;
       final detected = await _detector.processImage(input);
       List<Landmark>? landmarks;
       if (detected.isNotEmpty) {
@@ -109,11 +116,11 @@ class MlKitPoseSource implements PoseSource {
               if (point == null) {
                 return const Landmark(x: 0, y: 0, visibility: 0);
               }
-              return normalizePortraitLandmark(
+              return normalizeShotLandmark(
                 x: point.x,
                 y: point.y,
-                portraitWidth: width,
-                portraitHeight: height,
+                shotWidth: width,
+                shotHeight: height,
                 isFrontCamera: frame.isFrontCamera,
                 visibility: point.likelihood,
               );
@@ -122,12 +129,11 @@ class MlKitPoseSource implements PoseSource {
       }
       if (!output.isClosed && output.hasListener && !_disposed) {
         output.add(
-          PoseFrame(
+          CoachPoseFrame(
             landmarks: landmarks,
             imageWidth: width,
             imageHeight: height,
-            rollDeg: roll,
-            pitchDeg: pitch,
+            attitude: attitude,
             at: at,
           ),
         );
@@ -145,6 +151,7 @@ class MlKitPoseSource implements PoseSource {
     _accelerometer = null;
     _active = false;
     _lastStarted = null;
+    _attitude = const ShotAttitude.initial();
   }
 
   Future<void> dispose() async {
