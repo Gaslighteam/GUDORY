@@ -56,6 +56,9 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
       (_, _) => _syncAddReference(),
     );
 
+    // Front camera is a plain camera: no pose, no engine, no recommendation.
+    if (ref.watch(frontCameraProvider)) return null;
+
     final poseSource = ref.watch(poseSourceProvider);
     final engine = ref.watch(coachEngineProvider);
     if (poseSource != null && engine != null) {
@@ -80,6 +83,7 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
   }
 
   bool _needsReference() =>
+      !ref.read(frontCameraProvider) &&
       ref.read(modeProvider).mode == ShootMode.custom &&
       ref.read(referenceProvider).isEmpty;
 

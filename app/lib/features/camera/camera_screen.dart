@@ -35,7 +35,6 @@ class CameraScreen extends ConsumerStatefulWidget {
 class _CameraScreenState extends ConsumerState<CameraScreen>
     with WidgetsBindingObserver {
   bool _capturing = false;
-  Timer? _autoShutter;
   String? _toastText;
 
   /// Hand-over guide / "done" message shown in the bubble for a moment.
@@ -43,9 +42,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   Timer? _noteTimer;
   Timer? _toastTimer;
   double _pinchBase = 1;
-
-  /// "Aligned" must hold this long before the auto shutter fires.
-  static const _holdBeforeShot = Duration(seconds: 1);
 
   /// X / flash diameter (~10% of the screen width in the mock).
   static const _topButton = 44.0;
@@ -65,7 +61,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   @override
   void dispose() {
-    _autoShutter?.cancel();
     _toastTimer?.cancel();
     _noteTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -84,33 +79,24 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   }
 
   void _onInstruction(CoachInstruction? previous, CoachInstruction? next) {
-    // "Add a reference" is shown in the bubble only: no beeps or shot.
-    if (next == null || next.key == InstructionKey.addReference) {
-      _autoShutter?.cancel();
+    // "Add a reference" / "no person" are statuses: on screen only, no beeps.
+    if (next == null ||
+        next.key == InstructionKey.addReference ||
+        next.key == InstructionKey.noPerson) {
       _feedback.stop();
       return;
     }
-    // "No person" is a status, not a move: on screen only, no beeps.
-    if (next.key == InstructionKey.noPerson) {
-      _autoShutter?.cancel();
-      _feedback.stop();
-      return;
-    }
+    // Aligned: ding + vibration + yellow shutter ring tell the photographer
+    // to press. There is no auto shutter; the photo is always taken by hand.
     if (next.aligned) {
-      if (previous?.aligned != true) {
-        _feedback.aligned();
-        _autoShutter?.cancel();
-        _autoShutter = Timer(_holdBeforeShot, _capture);
-      }
+      if (previous?.aligned != true) _feedback.aligned();
       return;
     }
-    _autoShutter?.cancel();
     _feedback.proximity(next.error);
   }
 
   Future<void> _capture() async {
     if (_capturing || !_camera.isReady) return;
-    _autoShutter?.cancel();
     _feedback.stop();
     setState(() => _capturing = true);
     try {
@@ -176,6 +162,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     ref.read(referenceProvider.notifier).clear();
     ref.read(coachingProvider.notifier).reset();
     _toast('레퍼런스를 지웠어요');
+  }
+
+  /// Front camera = plain camera: coaching and recommendations stop.
+  Future<void> _flip() async {
+    _feedback.stop();
+    await _camera.flip();
+    final front = _camera.isFront;
+    ref.read(frontCameraProvider.notifier).set(front);
+    ref.read(coachingProvider.notifier).reset();
+    _toast(front ? '전면 카메라: 구도 안내 없이 찍어요' : '구도 안내를 다시 시작해요');
   }
 
   /// Language for instructions: the photographer's while handed over.
@@ -253,6 +249,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final custom = mode.mode == ShootMode.custom;
     final handover = ref.watch(handoverProvider);
     final handedOver = handover.active;
+    // Front camera = plain camera: no coaching UI at all.
+    final front = ref.watch(frontCameraProvider);
     ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
     return PopScope(
@@ -286,24 +284,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                           const GridOverlay(),
                           const CenterCrosshair(),
                         ],
-                        Align(
-                          alignment: const Alignment(0, -0.5),
-                          child: AnimatedRotation(
-                            turns: turns / 4,
-                            duration: const Duration(milliseconds: 250),
-                            child: GestureDetector(
-                              // Debug builds: long-press plays a scripted session,
-                              // double-tap opens the pose overlay.
-                              onLongPress: kDebugMode
-                                  ? ref.read(coachingProvider.notifier).runDemo
-                                  : null,
-                              onDoubleTap: kDebugMode
-                                  ? () => context.push('/debug/pose')
-                                  : null,
-                              child: _bubble(instruction, handover),
+                        if (!front)
+                          Align(
+                            alignment: const Alignment(0, -0.5),
+                            child: AnimatedRotation(
+                              turns: turns / 4,
+                              duration: const Duration(milliseconds: 250),
+                              child: GestureDetector(
+                                // Debug builds: long-press plays a scripted session,
+                                // double-tap opens the pose overlay.
+                                onLongPress: kDebugMode
+                                    ? ref
+                                          .read(coachingProvider.notifier)
+                                          .runDemo
+                                    : null,
+                                onDoubleTap: kDebugMode
+                                    ? () => context.push('/debug/pose')
+                                    : null,
+                                child: _bubble(instruction, handover),
+                              ),
                             ),
                           ),
-                        ),
                         // Pinned to the top: inside an expanded Stack an unpositioned
                         // Row would stretch and center its buttons vertically.
                         Positioned(
@@ -324,13 +325,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                     )
                                   : Row(
                                       children: [
-                                        ModeToggle(
-                                          mode: mode.mode,
-                                          onChanged: ref
-                                              .read(modeProvider.notifier)
-                                              .setMode,
-                                        ),
-                                        if (custom && !reference.isEmpty) ...[
+                                        if (!front)
+                                          ModeToggle(
+                                            mode: mode.mode,
+                                            onChanged: ref
+                                                .read(modeProvider.notifier)
+                                                .setMode,
+                                          ),
+                                        if (!front &&
+                                            custom &&
+                                            !reference.isEmpty) ...[
                                           const SizedBox(width: 10),
                                           RoundIconButton(
                                             icon: Icons.close,
@@ -341,19 +345,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                           ),
                                         ],
                                         const Spacer(),
-                                        Opacity(
-                                          opacity: custom && reference.isEmpty
-                                              ? 0.4
-                                              : 1,
-                                          child: RoundIconButton(
-                                            icon: Icons.front_hand_outlined,
-                                            onPressed: _startHandover,
-                                            size: _topButton,
-                                            tooltip: '폰 건네기',
-                                            quarterTurns: turns,
+                                        if (!front)
+                                          Opacity(
+                                            opacity: custom && reference.isEmpty
+                                                ? 0.4
+                                                : 1,
+                                            child: RoundIconButton(
+                                              icon: Icons.front_hand_outlined,
+                                              onPressed: _startHandover,
+                                              size: _topButton,
+                                              tooltip: '폰 건네기',
+                                              quarterTurns: turns,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 10),
+                                        if (!front) const SizedBox(width: 10),
                                         RoundIconButton(
                                           icon: switch (camera.flashMode) {
                                             FlashMode.auto => Icons.flash_auto,
@@ -400,7 +405,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                   },
                 ),
               ),
-              if (!custom && !handedOver)
+              if (!custom && !handedOver && !front)
                 LevelBar(
                   level: mode.level,
                   onChanged: ref.read(modeProvider.notifier).setLevel,
@@ -408,15 +413,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
               SafeArea(
                 top: false,
                 child: BottomBar(
-                  reference: custom && !handedOver
+                  reference: custom && !handedOver && !front
                       ? ReferenceThumb(state: reference, onTap: _onReferenceTap)
                       : const SizedBox(width: 60),
                   quarterTurns: turns,
                   onShutter: camera.isReady ? _capture : null,
-                  // Front camera is hidden for the submission: coaching runs in mirrored
-                  // preview space while the saved selfie is unmirrored, and
-                  // photographer-relative wording reads oddly for a selfie.
-                  onFlip: null,
+                  onFlip: camera.canFlip && !handedOver ? _flip : null,
                   armed: instruction?.aligned ?? false,
                   busy: _capturing,
                 ),

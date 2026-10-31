@@ -165,14 +165,15 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 - `build_assets.py` keeps one-person photos whose head and shoulders are visible (pose), classifies the framing, and builds `recommend.json`.
 
 ## 6. UX rules (from the UI mock)
-- Camera screen (matches the mock): **mode toggle `추천 | 맞춤` at the top left**, X right of the toggle (reset references, custom mode only, shown when references exist) and flash at the top right, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.6 / 1x / 2 / 3` (only supported levels) that opens a **continuous slider** when dragged sideways, pinch zoom, bottom row = **reference slot** · shutter (the front-camera flip is hidden for the submission: mirrored coaching vs unmirrored saved selfie, untested).
+- Camera screen (matches the mock): **mode toggle `추천 | 맞춤` at the top left**, X right of the toggle (reset references, custom mode only, shown when references exist) and flash at the top right, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.6 / 1x / 2 / 3` (only supported levels) that opens a **continuous slider** when dragged sideways, pinch zoom, bottom row = **reference slot** · shutter · flip.
 - **Recommend mode**: where the category bar was, a **5-step bar** labelled `인물 중심` … `배경 중심` (default 3). The reference slot is hidden.
 - **Custom mode**: the 5-step bar is hidden; the reference slot is shown.
 - In landscape, icons and the bubble rotate 90° in place (the layout does not move).
 - **Do not draw a person outline.**
 - References: tap the bottom-left slot to pick **one or more** photos (portrait or landscape). The active one (yellow border) is the target; with several, a sheet lets the user switch, add, remove or clear. **References persist across shots** and are removed only by X / "모두 지우기".
 - **No result screen.** After a shot the photo is saved to the GUDORY album and a short toast confirms it.
-- Auto shutter: when `aligned` holds for 1.0 s → vibrate + capture. The shutter button always works.
+- **No auto shutter** (team decision): `aligned` → ding + vibration + yellow shutter ring and the bubble says "좋아요! 지금 셔터를 눌러 주세요"; the photographer always presses the shutter.
+- **Front camera = plain camera**: the flip button switches to it; coaching, recommendations, the bubble, level bar, reference slot and hand-over are off until switching back.
 - **Hand-over mode** (✋ button left of the flash): the owner picks the photographer's language (한국어 / English / 日本語); the screen then shows only the instruction bubble (larger text), the shutter and a top-left lock pill (**long-press to exit**). Mode toggle, X, level bar, reference slot, zoom and flip are hidden, and the system back gesture is blocked. A guide line is shown on entry; after a shot "다 찍었어요! 주인에게 돌려주세요" in that language. Instructions use `InstructionText.of(key, amount, lang)` with `lang` = 'ko' | 'en' | 'ja'.
 - No empty buttons or "coming soon" screens; drop what does not work. UI text in Korean, no photography jargon ("틸트" → "폰 윗부분을 앞으로").
 - Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, bottom bar (5-step bar) `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.
