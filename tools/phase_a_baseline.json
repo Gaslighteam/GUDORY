@@ -1,0 +1,282 @@
+{
+  "accepted_source_compositions": {
+    "landscape": {
+      "count": 2042,
+      "mean_x": 0.5042519701583069,
+      "percent": {
+        "left": 30.558276199804112,
+        "near_center": 37.70812928501469,
+        "right": 31.733594515181196
+      },
+      "regions": {
+        "left": 624,
+        "near_center": 770,
+        "right": 648
+      },
+      "std_x": 0.1733324094328939,
+      "weighted_percent": {
+        "left": 30.4390243902439,
+        "near_center": 37.853658536585364,
+        "right": 31.70731707317073
+      },
+      "x_histogram": [
+        73,
+        551,
+        770,
+        561,
+        87
+      ]
+    },
+    "portrait": {
+      "count": 1191,
+      "mean_x": 0.5147926833956065,
+      "percent": {
+        "left": 21.242653232577666,
+        "near_center": 50.545759865659114,
+        "right": 28.211586901763226
+      },
+      "regions": {
+        "left": 253,
+        "near_center": 602,
+        "right": 336
+      },
+      "std_x": 0.14383985069261554,
+      "weighted_percent": {
+        "left": 21.00708103855232,
+        "near_center": 50.98347757671125,
+        "right": 28.009441384736427
+      },
+      "x_histogram": [
+        24,
+        229,
+        602,
+        300,
+        36
+      ]
+    }
+  },
+  "asset_bytes": 107801,
+  "asset_sha256": "75f3e9bc6c33c3536e4f04e7152ac9306582bd46a6b2f5cfa6a72f8c5a3c456c",
+  "cluster_level_compositions": {
+    "count": 303,
+    "left": 52,
+    "near_center": 210,
+    "right": 41
+  },
+  "clusters": {
+    "l": 60,
+    "p": 43
+  },
+  "commit": "f0c878c227e2a4c996dc36f5e0d82c53b3afe7e2",
+  "exported_cluster_medians": {
+    "all": {
+      "count": 303,
+      "mean_x": 0.49236000109753225,
+      "percent": {
+        "left": 17.16171617161716,
+        "near_center": 69.3069306930693,
+        "right": 13.531353135313532
+      },
+      "regions": {
+        "left": 52,
+        "near_center": 210,
+        "right": 41
+      },
+      "std_x": 0.10091923189960976,
+      "weighted_percent": {
+        "left": 17.16171617161716,
+        "near_center": 69.3069306930693,
+        "right": 13.531353135313532
+      },
+      "x_histogram": [
+        1,
+        51,
+        210,
+        40,
+        1
+      ]
+    },
+    "by_orientation": {
+      "landscape": {
+        "count": 186,
+        "mean_x": 0.4871778245815026,
+        "percent": {
+          "left": 20.43010752688172,
+          "near_center": 62.903225806451616,
+          "right": 16.666666666666664
+        },
+        "regions": {
+          "left": 38,
+          "near_center": 117,
+          "right": 31
+        },
+        "std_x": 0.11251456776447906,
+        "weighted_percent": {
+          "left": 20.43010752688172,
+          "near_center": 62.903225806451616,
+          "right": 16.666666666666668
+        },
+        "x_histogram": [
+          1,
+          37,
+          117,
+          31,
+          0
+        ]
+      },
+      "portrait": {
+        "count": 117,
+        "mean_x": 0.5005983329948104,
+        "percent": {
+          "left": 11.965811965811966,
+          "near_center": 79.48717948717949,
+          "right": 8.547008547008547
+        },
+        "regions": {
+          "left": 14,
+          "near_center": 93,
+          "right": 10
+        },
+        "std_x": 0.07835670460682329,
+        "weighted_percent": {
+          "left": 11.965811965811966,
+          "near_center": 79.48717948717949,
+          "right": 8.547008547008547
+        },
+        "x_histogram": [
+          0,
+          14,
+          93,
+          9,
+          1
+        ]
+      }
+    },
+    "clusters": {
+      "l": 60,
+      "p": 43
+    },
+    "minimum_support": 3,
+    "support_histogram": {
+      "3": 65,
+      "4": 54,
+      "5": 55,
+      "6": 38,
+      "7": 24,
+      "8": 16,
+      "9": 16,
+      "10": 10,
+      "11": 5,
+      "12": 4,
+      "13": 4,
+      "14": 1,
+      "15": 2,
+      "20": 3,
+      "23": 1,
+      "25": 1,
+      "29": 2,
+      "33": 1,
+      "37": 1
+    }
+  },
+  "fallbacks": {
+    "count": 10,
+    "left": 0,
+    "near_center": 10,
+    "right": 0
+  },
+  "input_counts": {
+    "accepted": 3233,
+    "accepted_source/supplementary": 3189,
+    "accepted_source/team": 44,
+    "pose_accepted": 3256,
+    "processed": 5603,
+    "rejected": 2370,
+    "rejected/pose/ambiguous_person_count": 1850,
+    "rejected/pose/invalid_measurements": 84,
+    "rejected/pose/missing_required_landmarks": 1,
+    "rejected/pose/person_pose_mismatch": 75,
+    "rejected/pose/pose_count_mismatch": 334,
+    "rejected/pose/square_crop_cuts_person": 3,
+    "rejected/segmentation": 23,
+    "source_orientation/landscape": 3662,
+    "source_orientation/near_square": 373,
+    "source_orientation/portrait": 1568
+  },
+  "near_center_interval": [
+    0.42,
+    0.58
+  ],
+  "orientation": {
+    "l": {
+      "count": 186,
+      "left": 38,
+      "near_center": 117,
+      "right": 31
+    },
+    "p": {
+      "count": 117,
+      "left": 14,
+      "near_center": 93,
+      "right": 10
+    }
+  },
+  "production_reproduced_by_native_rebuild": true,
+  "training_query_legacy_recommendations": {
+    "all": {
+      "count": 16165,
+      "mean_x": 0.49495053426914115,
+      "percent": {
+        "left": 9.563872564181874,
+        "near_center": 83.94061243427157,
+        "right": 6.495515001546551
+      },
+      "regions": {
+        "left": 1546,
+        "near_center": 13569,
+        "right": 1050
+      },
+      "std_x": 0.06970380525292838,
+      "weighted_percent": {
+        "left": 9.563872564181874,
+        "near_center": 83.94061243427157,
+        "right": 6.4955150015465515
+      },
+      "x_histogram": [
+        5,
+        1541,
+        13569,
+        952,
+        98
+      ]
+    },
+    "fallback_count": 0,
+    "matched": {
+      "count": 16165,
+      "mean_x": 0.49495053426914115,
+      "percent": {
+        "left": 9.563872564181874,
+        "near_center": 83.94061243427157,
+        "right": 6.495515001546551
+      },
+      "regions": {
+        "left": 1546,
+        "near_center": 13569,
+        "right": 1050
+      },
+      "std_x": 0.06970380525292838,
+      "weighted_percent": {
+        "left": 9.563872564181874,
+        "near_center": 83.94061243427157,
+        "right": 6.4955150015465515
+      },
+      "x_histogram": [
+        5,
+        1541,
+        13569,
+        952,
+        98
+      ]
+    }
+  }
+}
