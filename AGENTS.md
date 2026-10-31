@@ -167,7 +167,8 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 ## 6. UX rules (from the UI mock)
 - **Preview is 3:4 (the still's own aspect), letterboxed** like Samsung's 3:4 mode: the top bar sits in the black area above it, the shutter row in the black area below. What you see is the whole photo, so saving does no crop; landscape shots only get their EXIF orientation rewritten (`exif_orientation.dart`), no re-encode.
 - Camera screen (matches the mock): **mode toggle `추천 | 맞춤` at the top left**, X right of the toggle (reset references, custom mode only, shown when references exist) and flash at the top right, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.6 / 1x / 2 / 3` (only supported levels) that opens a **continuous slider** when dragged sideways, pinch zoom, bottom row = **reference slot** · shutter · flip.
-- **Recommend mode**: where the category bar was, a **5-step bar** labelled `인물 중심` … `배경 중심` (default 3). The reference slot is hidden.
+- **Mid row (bottom of the preview):** composition button (recommend only) · zoom pill · ⠿ menu. Each round button **expands in place** into its panel (`ExpandFromButton`): composition = × · 인물 · 5 silhouettes · 배경 (default 3, closes 3 s after the last touch); ⠿ = 사용법 · language · ×. A tap anywhere outside the open panel closes it (`TapRegion`).
+- **Recommend mode**: composition button shown; the reference slot is hidden.
 - **Custom mode**: the 5-step bar is hidden; the reference slot is shown.
 - In landscape, icons and the bubble rotate 90° in place (the layout does not move).
 - **Do not draw a person outline.**
@@ -175,7 +176,9 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 - **No result screen.** After a shot the photo is saved to the GUDORY album and a short toast confirms it.
 - **No auto shutter** (team decision): `aligned` → ding + vibration + yellow shutter ring and the bubble says "좋아요! 지금 셔터를 눌러 주세요"; the photographer always presses the shutter.
 - **Front camera = plain camera**: the flip button switches to it; coaching, recommendations, the bubble, mode toggle, level bar and reference slot are off until switching back (flash, zoom, shutter, flip, `?` and language stay).
-- **Top bar (right):** `?` (how-to, opens `/tutorial`) · language button (`KO` / `EN` / `JA`, sheet; the bubble text follows it) · flash. The tutorial opens automatically on the first launch only (`TutorialGate`, an empty flag file in the app support dir); its pages are a placeholder until Bomin's design lands (`features/tutorial/tutorial_screen.dart`, edit `_pages`).
+- **Swipe up/down on the preview flips the camera** (along the held vertical, so it works sideways too); pinch still zooms.
+- **Shutter sound = the system camera sound** (`MediaActionSound` via the `gudory/shutter` channel in `MainActivity.kt`); in Korea it plays even in silent mode, like the stock camera.
+- **⠿ menu:** 사용법 opens `/tutorial`; language (`한국어` / `English` / `日本語`, the bubble text follows it). The tutorial opens automatically on the first launch only (`TutorialGate`, an empty flag file in the app support dir); its pages are a placeholder until Bomin's design lands (`features/tutorial/tutorial_screen.dart`, edit `_pages`).
 - **Hand-over mode was removed** (team decision).
 - No empty buttons or "coming soon" screens; drop what does not work. UI text in Korean, no photography jargon ("틸트" → "폰 윗부분을 앞으로").
 - Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, bottom bar (5-step bar) `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.

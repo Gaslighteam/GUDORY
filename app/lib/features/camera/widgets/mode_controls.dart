@@ -321,53 +321,105 @@ class MenuDotsButton extends StatelessWidget {
   }
 }
 
-/// ⠿ menu: how-to and instruction language.
-Future<void> showCameraMenu(
-  BuildContext context, {
-  required String languageLabel,
-  required VoidCallback onTutorial,
-  required VoidCallback onLanguage,
-}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: const Color(0xFF1C1C1E),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (sheet) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.help_outline, color: Colors.white),
-              title: const Text(
-                '사용법 보기',
-                style: TextStyle(color: AppColors.text),
-              ),
-              onTap: () {
-                Navigator.pop(sheet);
-                onTutorial();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.translate, color: Colors.white),
-              title: const Text(
-                '안내 언어',
-                style: TextStyle(color: AppColors.text),
-              ),
-              trailing: Text(
-                languageLabel,
-                style: const TextStyle(color: Colors.white60),
-              ),
-              onTap: () {
-                Navigator.pop(sheet);
-                onLanguage();
-              },
-            ),
-          ],
+/// Grows a pill-shaped panel out of the round button it replaces: at 0 only
+/// the [alignment] end (the button's spot) shows, at 1 the whole panel.
+class ExpandFromButton extends AnimatedWidget {
+  const ExpandFromButton({
+    super.key,
+    required Animation<double> animation,
+    required this.alignment,
+    required this.child,
+  }) : super(listenable: animation);
+
+  final Alignment alignment;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = (listenable as Animation<double>).value;
+    return Align(
+      alignment: alignment,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: ConstrainedBox(
+          // Start from the button's own width, not from nothing.
+          constraints: const BoxConstraints(minWidth: 44),
+          child: Align(
+            alignment: alignment,
+            widthFactor: t,
+            child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// The ⠿ menu, expanded in place from its button: how-to and instruction
+/// language; × (where the button was) closes it.
+class CameraMenuPanel extends StatelessWidget {
+  const CameraMenuPanel({
+    super.key,
+    required this.languageLabel,
+    required this.onTutorial,
+    required this.onLanguage,
+    required this.onClose,
+    this.quarterTurns = 0,
+  });
+
+  final String languageLabel;
+  final VoidCallback onTutorial;
+  final VoidCallback onLanguage;
+  final VoidCallback onClose;
+  final int quarterTurns;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.only(left: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _item(Icons.help_outline, '사용법', onTutorial),
+          _item(Icons.translate, languageLabel, onLanguage),
+          IconButton(
+            onPressed: onClose,
+            icon: const Icon(Icons.close, color: Colors.white),
+            tooltip: '닫기',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _item(IconData icon, String label, VoidCallback onTap) => InkWell(
+    borderRadius: BorderRadius.circular(22),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedRotation(
+            turns: quarterTurns / 4,
+            duration: const Duration(milliseconds: 250),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     ),
   );
