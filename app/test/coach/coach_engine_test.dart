@@ -244,38 +244,7 @@ void main() {
       },
     );
 
-    test(
-      'level oppositeWay is interrupted immediately when Roll becomes unreliable',
-      () {
-        update(pose(level: 1.2));
-        clock.ms = 1000;
-        update(pose(level: 1.2));
-        clock.ms = 1500;
-        expect(update(pose(level: 1.6)).key, InstructionKey.oppositeWay);
-        clock.ms = 1501;
-        expect(
-          update(pose(level: 1.7, horizontal: 2, rollReliable: false)).key,
-          InstructionKey.stepRight,
-        );
-      },
-    );
-
-    test('spatial oppositeWay continues normally while Roll is unreliable', () {
-      update(pose(distance: 1.2, rollReliable: false));
-      clock.ms = 1000;
-      update(pose(distance: 1.2, rollReliable: false));
-      clock.ms = 1500;
-      final warning = update(pose(distance: 1.6, rollReliable: false));
-      expect(warning.key, InstructionKey.oppositeWay);
-      expect(warning.axis, CoachAxis.distance);
-      clock.ms = 1501;
-      expect(
-        update(pose(distance: 1.7, rollReliable: false)).key,
-        InstructionKey.oppositeWay,
-      );
-    });
-
-    test('recovery resumes level immediately with fresh warning history', () {
+    test('recovery resumes level immediately', () {
       update(pose(level: 2));
       clock.ms = 100;
       expect(
@@ -360,26 +329,6 @@ void main() {
         );
         clock.ms = 2;
         expect(update(pose(horizontal: 2)).key, InstructionKey.stepRight);
-      },
-    );
-
-    test(
-      'orientation mismatch interrupts warning and invalidates old growth history',
-      () {
-        update(pose(level: 1.2));
-        clock.ms = 1000;
-        update(pose(level: 1.2));
-        clock.ms = 1500;
-        expect(update(pose(level: 1.6)).key, InstructionKey.oppositeWay);
-        clock.ms = 1501;
-        expect(
-          update(pose(orientation: ShotOrientation.landscape)).key,
-          InstructionKey.turnPortrait,
-        );
-        clock.ms = 1502;
-        expect(update(pose(level: 2)).key, InstructionKey.holdPhoneUpright);
-        clock.ms = 3002;
-        expect(update(pose(level: 2.5)).key, InstructionKey.holdPhoneUpright);
       },
     );
 
@@ -484,148 +433,28 @@ void main() {
     });
   });
 
-  group('oppositeWay', () {
-    void startWarning([double sign = 1]) {
-      update(pose(level: sign * 1.2));
-      clock.ms = 500;
-      update(pose(level: sign * 1.5));
-      clock.ms = 1000;
-      update(pose(level: sign * 1.7));
-      clock.ms = 1499;
-      expect(
-        update(pose(level: sign * 2)).key,
-        InstructionKey.holdPhoneUpright,
-      );
-      clock.ms = 1500;
-      expect(update(pose(level: sign * 2.01)).key, InstructionKey.oppositeWay);
-    }
-
+  group('growing error', () {
     test(
-      'growth during the hold cannot interrupt it; fresh growth can warn later',
+      'keeps the direction instruction; there is no opposite-way warning',
       () {
-        startWarning();
-      },
-    );
-
-    test('absolute error growth also detects the negative direction', () {
-      startWarning(-1);
-    });
-
-    test('no delayed warning after the user starts improving', () {
-      update(pose(level: 1.2));
-      clock.ms = 600;
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 2));
-      clock.ms = 1400;
-      update(pose(level: 1.8));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.7)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test('a small rebound after improvement cannot revive stale growth', () {
-      update(pose(level: 1.2));
-      clock.ms = 600;
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 2));
-      clock.ms = 1400;
-      update(pose(level: 1.6));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.61)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test('a plateau does not replay earlier worsening', () {
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 1.6));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.6)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test('0.3 increase within exactly one second qualifies', () {
-      update(pose(level: 1.2));
-      clock.ms = 500;
-      update(pose(level: 1.2));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.5)).key, InstructionKey.oppositeWay);
-    });
-
-    test('less than 0.3 growth does not qualify', () {
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 1.2));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.499)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test('growth over more than one second does not qualify', () {
-      update(pose(level: 1.2));
-      clock.ms = 499;
-      update(pose(level: 1.2));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.6)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test('crossing zero clears direction history', () {
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 1.2));
-      clock.ms = 1500;
-      expect(update(pose(level: -1.8)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test(
-      'one warning transition per activation, held for 1.5s then consumed',
-      () {
-        startWarning();
-        final keys = [InstructionKey.oppositeWay];
-        clock.ms = 1600;
-        keys.add(update(pose(level: 2.2)).key);
-        clock.ms = 2999;
-        keys.add(update(pose(level: 2.4)).key);
+        update(pose(level: 1.2));
+        clock.ms = 500;
+        update(pose(level: 1.5));
+        clock.ms = 1000;
+        update(pose(level: 1.7));
+        clock.ms = 1500;
+        expect(update(pose(level: 2.01)).key, InstructionKey.holdPhoneUpright);
         clock.ms = 3000;
-        keys.add(update(pose(level: 2.5)).key);
-        clock.ms = 4500;
-        keys.add(update(pose(level: 2.6)).key);
-        clock.ms = 4600;
-        keys.add(update(pose(level: 3.0)).key);
-        expect(keys, [
-          InstructionKey.oppositeWay,
-          InstructionKey.oppositeWay,
-          InstructionKey.oppositeWay,
-          InstructionKey.holdPhoneUpright,
-          InstructionKey.holdPhoneUpright,
-          InstructionKey.holdPhoneUpright,
-        ]);
+        expect(update(pose(level: 3)).key, InstructionKey.holdPhoneUpright);
       },
     );
 
-    test('aligned immediately interrupts a held warning', () {
-      startWarning();
-      clock.ms = 1501;
-      expect(update(pose(level: 0.9)).key, InstructionKey.aligned);
-    });
-
-    test('repeated timestamps are not evidence of movement', () {
-      engine = DefaultCoachEngine(
-        clock: clock.read,
-        minInstructionHold: Duration.zero,
-      );
-      update(pose(level: 1.2));
-      expect(update(pose(level: 2)).key, InstructionKey.holdPhoneUpright);
-    });
-
-    test('warning history is reset when alignment ends an activation', () {
-      startWarning();
-      clock.ms = 1600;
-      update(pose());
-      clock.ms = 2000;
-      update(pose(level: 1.2));
-      clock.ms = 2500;
-      update(pose(level: 1.2));
-      clock.ms = 3500;
-      expect(update(pose(level: 1.6)).key, InstructionKey.oppositeWay);
+    test('a growing spatial error keeps its direction', () {
+      update(pose(distance: 1.2));
+      clock.ms = 1000;
+      update(pose(distance: 1.2));
+      clock.ms = 1500;
+      expect(update(pose(distance: 1.6)).key, InstructionKey.stepBack);
     });
   });
 
@@ -654,18 +483,6 @@ void main() {
         expect(result.aligned, isFalse);
       },
     );
-
-    test('cropped ankles do not interrupt a held warning', () {
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 1.2));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.6)).key, InstructionKey.oppositeWay);
-      clock.ms = 1501;
-      final result = update(pose(level: 1.7, fullBody: false));
-      expect(result.key, InstructionKey.oppositeWay);
-      expect(result.errors[CoachAxis.distance], closeTo(0, 1e-10));
-    });
 
     test(
       'all four target framings use head-to-anchor spans without a resolver',
@@ -708,29 +525,6 @@ void main() {
       expect(update(pose(distance: 2), makeTarget()).axis, CoachAxis.distance);
     });
 
-    test('equal target values do not re-arm a consumed warning', () {
-      update(pose(level: 1.2), makeTarget());
-      clock.ms = 1000;
-      update(pose(level: 1.2), makeTarget());
-      clock.ms = 1500;
-      expect(
-        update(pose(level: 1.6), makeTarget()).key,
-        InstructionKey.oppositeWay,
-      );
-      clock.ms = 3000;
-      expect(
-        update(pose(level: 1.6), makeTarget()).key,
-        InstructionKey.holdPhoneUpright,
-      );
-      clock.ms = 4500;
-      update(pose(level: 1.6), makeTarget());
-      clock.ms = 4600;
-      expect(
-        update(pose(level: 2), makeTarget()).key,
-        InstructionKey.holdPhoneUpright,
-      );
-    });
-
     test('changing any target value clears the old active axis and hold', () {
       final targets = [
         makeTarget(height: 0.7),
@@ -758,27 +552,6 @@ void main() {
           CoachAxis.distance,
         );
       }
-    });
-
-    test('target change clears warning and its history immediately', () {
-      update(pose(level: 1.2));
-      clock.ms = 1000;
-      update(pose(level: 1.2));
-      clock.ms = 1500;
-      expect(update(pose(level: 1.6)).key, InstructionKey.oppositeWay);
-      clock.ms = 1501;
-      final target = makeTarget(source: 'reference');
-      expect(
-        update(pose(level: 2), target).key,
-        InstructionKey.holdPhoneUpright,
-      );
-      clock.ms = 3001;
-      expect(
-        update(pose(level: 2.5), target).key,
-        InstructionKey.holdPhoneUpright,
-      );
-      clock.ms = 3501;
-      expect(update(pose(level: 2.9), target).key, InstructionKey.oppositeWay);
     });
 
     test('landscape movement conversion uses the rotated FOV', () {
