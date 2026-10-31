@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/contracts.dart';
 import '../../core/models.dart';
+import 'pose_geometry.dart';
 
 /// The caller owns camera startup, portrait lock, and PoseSource disposal.
 class DebugPosePage extends StatefulWidget {
@@ -42,8 +43,9 @@ class _DebugPosePageState extends State<DebugPosePage> {
         if (!widget.controller.value.isInitialized || preview == null) {
           return const Center(child: Text('카메라를 준비하고 있어요'));
         }
-        final width = frame?.imageWidth.toDouble() ?? preview.height;
-        final height = frame?.imageHeight.toDouble() ?? preview.width;
+        // The UI preview stays portrait even when the shot is landscape.
+        final width = preview.shortestSide;
+        final height = preview.longestSide;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -79,7 +81,10 @@ class _DebugPosePageState extends State<DebugPosePage> {
                         ? '자세 분석 오류: ${snapshot.error}'
                         : frame == null
                         ? '분석을 기다리고 있어요'
-                        : '좌우 기울기 ${frame.rollDeg.toStringAsFixed(1)}°  '
+                        : '${frame.orientation == ShotOrientation.landscape ? "가로" : "세로"}  '
+                              '${frame is CoachPoseFrame ? "회전 ${frame.attitude.quarterTurns}" : ""}\n'
+                              '좌우 기울기 ${frame.rollDeg.toStringAsFixed(1)}°  '
+                              '${frame.rollReliable ? "Roll 유효" : "Roll 유지 · 센서 불확실"}\n'
                               '눕힘 ${frame.pitchDeg.toStringAsFixed(1)}°\n'
                               '${frame.landmarks == null ? "사람 없음" : "관절 33점"}  '
                               '${frame.imageWidth} × ${frame.imageHeight}',
@@ -102,11 +107,26 @@ class PoseDotsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final snapshot = frame;
+    // Never guess left/right from a corrected Roll of 0°. Real PoseSource
+    // frames carry the direction captured before detector processing.
+    if (snapshot != null &&
+        snapshot.orientation == ShotOrientation.landscape &&
+        snapshot is! CoachPoseFrame) {
+      return;
+    }
+    final quarterTurns = snapshot is CoachPoseFrame
+        ? snapshot.attitude.quarterTurns
+        : 0;
     final paint = Paint()..color = const Color(0xFFFFD60A);
     for (final point in frame?.landmarks ?? const <Landmark>[]) {
       if (point.visibility < 0.5) continue;
+      final portrait = shotToPortrait(
+        Offset(point.x, point.y),
+        quarterTurns: quarterTurns,
+      );
       canvas.drawCircle(
-        Offset(point.x * size.width, point.y * size.height),
+        Offset(portrait.dx * size.width, portrait.dy * size.height),
         size.width / 120,
         paint,
       );
