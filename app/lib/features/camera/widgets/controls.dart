@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/theme.dart';
 import '../shot_state.dart';
@@ -65,8 +66,10 @@ abstract final class ZoomControlLabels {
       z < 1 ? '.${(z * 10).round()}' : '${z.round()}';
 }
 
-/// Zoom presets (`.6 / 1 / 2 / 3`) plus continuous zoom: drag the pill
-/// sideways to open a slider covering every level the camera supports.
+/// Zoom presets (`.6 / 1 / 2 / 3`); dragging the pill sideways (or pinching
+/// the preview) opens a Galaxy-style ruler: ticks slide under a fixed centre
+/// marker, the live value sits above it, and every 0.1× step ticks the
+/// haptics (a stronger tick on .6 / 1 / 2 / 3 / 5 / 10).
 class ZoomControl extends StatefulWidget {
   const ZoomControl({
     super.key,
@@ -88,7 +91,18 @@ class ZoomControl extends StatefulWidget {
 }
 
 class _ZoomControlState extends State<ZoomControl> {
-  bool _sliding = false;
+  /// Ruler travel: pixels per unit of ln(zoom).
+  static const _pxPerLog = 180.0;
+  static const _majors = [0.6, 1.0, 2.0, 3.0, 5.0, 10.0];
+
+  bool _ruler = false;
+  bool _fromChip = false;
+
+  /// Zoom being dragged to. The camera applies zoom asynchronously, so drag
+  /// steps accumulate here instead of restarting from a stale widget.zoom.
+  double? _dragZoom;
+
+  double get _shown => _dragZoom ?? widget.zoom;
   Timer? _hide;
 
   @override
@@ -97,39 +111,74 @@ class _ZoomControlState extends State<ZoomControl> {
     super.dispose();
   }
 
-  // Log scale so 0.5→1 and 1→10 get comparable travel.
-  double _toT(double z) =>
-      (math.log(z) - math.log(widget.min)) /
-      (math.log(widget.max) - math.log(widget.min));
-  double _fromT(double t) => math.exp(
-    math.log(widget.min) + t * (math.log(widget.max) - math.log(widget.min)),
-  );
-
-  void _startSlide() {
-    _hide?.cancel();
-    setState(() => _sliding = true);
+  @override
+  void didUpdateWidget(ZoomControl old) {
+    super.didUpdateWidget(old);
+    final from = old.zoom, to = widget.zoom;
+    if ((from - to).abs() < 1e-6) return;
+    // Drags tick in _drag; here only chip taps and pinch zoom.
+    if (_dragZoom == null) _haptics(from, to);
+    // Pinch zoom (from the preview) also shows the ruler.
+    if (!_fromChip) _showRuler();
+    _fromChip = false;
   }
 
-  void _endSlide() {
-    _hide?.cancel();
-    _hide = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) setState(() => _sliding = false);
+  /// Ticks for every 0.1× boundary crossed; stronger on the main presets.
+  void _haptics(double from, double to) {
+    final a = (from * 10).round();
+    final b = (to * 10).round();
+    if (a == b) return;
+    final lo = math.min(a, b);
+    final hi = math.max(a, b);
+    final crossedMajor = _majors.any((m) {
+      final t = (m * 10).round();
+      return t >= lo && t <= hi && t != a;
     });
+    if (crossedMajor) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  void _showRuler() {
+    _hide?.cancel();
+    if (!_ruler) setState(() => _ruler = true);
+    _hide = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _ruler = false);
+    });
+  }
+
+  void _drag(double dx) {
+    _showRuler();
+    // Like a dial: drag the scale left to bring higher values to the centre.
+    final from = _shown;
+    final next = math
+        .exp(math.log(from) - dx / _pxPerLog)
+        .clamp(widget.min, widget.max);
+    _haptics(from, next);
+    setState(() => _dragZoom = next);
+    widget.onChanged(next);
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.max - widget.min < 0.05) return const SizedBox.shrink();
     return GestureDetector(
-      onHorizontalDragStart: (_) => _startSlide(),
-      onHorizontalDragUpdate: (d) {
-        final t = (_toT(widget.zoom) + d.delta.dx / 260).clamp(0.0, 1.0);
-        widget.onChanged(_fromT(t));
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: (_) {
+        _dragZoom = widget.zoom;
+        _showRuler();
       },
-      onHorizontalDragEnd: (_) => _endSlide(),
+      onHorizontalDragUpdate: (d) => _drag(d.delta.dx),
+      onHorizontalDragEnd: (_) {
+        _dragZoom = null;
+        _showRuler();
+      },
+      onHorizontalDragCancel: () => _dragZoom = null,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 150),
-        child: _sliding ? _slider() : _chips(),
+        child: _ruler ? _rulerView() : _chips(),
       ),
     );
   }
@@ -152,7 +201,10 @@ class _ZoomControlState extends State<ZoomControl> {
         children: [
           for (final p in widget.presets)
             GestureDetector(
-              onTap: () => widget.onChanged(p),
+              onTap: () {
+                _fromChip = true;
+                widget.onChanged(p);
+              },
               child: Container(
                 width: 44,
                 height: 44,
@@ -180,55 +232,137 @@ class _ZoomControlState extends State<ZoomControl> {
     );
   }
 
-  Widget _slider() {
+  Widget _rulerView() {
     return Container(
-      key: const ValueKey('slider'),
-      width: 300,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      key: const ValueKey('ruler'),
+      width: 260,
+      height: 64,
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            ZoomControlLabels.live(widget.zoom),
-            style: const TextStyle(
-              color: AppColors.accent,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
+      clipBehavior: Clip.antiAlias,
+      child: ShaderMask(
+        // Fade the ends so ticks slide in and out like a dial.
+        shaderCallback: (rect) => const LinearGradient(
+          colors: [
+            Colors.transparent,
+            Colors.white,
+            Colors.white,
+            Colors.transparent,
+          ],
+          stops: [0, 0.18, 0.82, 1],
+        ).createShader(rect),
+        blendMode: BlendMode.dstIn,
+        child: CustomPaint(
+          painter: _ZoomRulerPainter(
+            zoom: _shown,
+            min: widget.min,
+            max: widget.max,
+            pxPerLog: _pxPerLog,
+            majors: _majors,
           ),
-          SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 2,
-              activeTrackColor: AppColors.accent,
-              inactiveTrackColor: Colors.white38,
-              thumbColor: AppColors.accent,
-              overlayShape: SliderComponentShape.noOverlay,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            ),
-            child: Slider(
-              value: _toT(widget.zoom).clamp(0.0, 1.0),
-              onChangeStart: (_) => _startSlide(),
-              onChanged: (t) => widget.onChanged(_fromT(t)),
-              onChangeEnd: (_) => _endSlide(),
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(ZoomControlLabels.live(widget.min), style: _small),
-              Text(ZoomControlLabels.live(widget.max), style: _small),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  static const _small = TextStyle(color: Colors.white70, fontSize: 11);
+class _ZoomRulerPainter extends CustomPainter {
+  const _ZoomRulerPainter({
+    required this.zoom,
+    required this.min,
+    required this.max,
+    required this.pxPerLog,
+    required this.majors,
+  });
+
+  final double zoom;
+  final double min;
+  final double max;
+  final double pxPerLog;
+  final List<double> majors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final baseY = size.height - 12;
+    double xOf(double z) => cx + (math.log(z) - math.log(zoom)) * pxPerLog;
+
+    final minor = Paint()
+      ..color = Colors.white54
+      ..strokeWidth = 1.2;
+    final major = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2;
+
+    // 0.1× ticks; skipped where they would crowd (< 5 px apart).
+    var lastX = -1e9;
+    for (var t = (min * 10).ceil(); t <= (max * 10).floor(); t++) {
+      final z = t / 10;
+      final x = xOf(z);
+      if (x < -10 || x > size.width + 10) continue;
+      final isMajor = majors.any((m) => (m - z).abs() < 1e-6);
+      if (!isMajor && x - lastX < 5) continue;
+      lastX = x;
+      canvas.drawLine(
+        Offset(x, baseY),
+        Offset(x, baseY - (isMajor ? 16 : 8)),
+        isMajor ? major : minor,
+      );
+      if (isMajor) {
+        _text(
+          canvas,
+          ZoomControlLabels.preset(z),
+          Offset(x, baseY - 30),
+          Colors.white70,
+          11,
+        );
+      }
+    }
+    // Fixed centre marker and the live value.
+    canvas.drawLine(
+      Offset(cx, baseY + 4),
+      Offset(cx, baseY - 22),
+      Paint()
+        ..color = AppColors.accent
+        ..strokeWidth = 2.5,
+    );
+    _text(
+      canvas,
+      ZoomControlLabels.live(zoom),
+      Offset(cx, 10),
+      AppColors.accent,
+      14,
+      bold: true,
+    );
+  }
+
+  void _text(
+    Canvas canvas,
+    String text,
+    Offset center,
+    Color color,
+    double size, {
+    bool bold = false,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: size,
+          fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(_ZoomRulerPainter old) =>
+      old.zoom != zoom || old.min != min || old.max != max;
 }
 
 /// Bottom-left slot: the active reference photo (tap to manage/add).
