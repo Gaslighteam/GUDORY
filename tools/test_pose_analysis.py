@@ -49,8 +49,26 @@ class MeasurementTests(unittest.TestCase):
                 if not left:
                     points[2] = None
                 if not right:
-                    points[5] = Landmark(.6, .18, .499)
+                    points[5] = Landmark(.6, math.nan, 1)
                 self.assertAlmostEqual(measure_pose(points).cy, expected)
+
+    def test_back_view_head_estimates_ignore_visibility(self):
+        points = fixture()
+        points[0] = Landmark(.5, .2, 0)
+        points[2], points[5] = Landmark(.4, .16, 0), Landmark(.6, .18, .01)
+        result = measure_pose(points)
+        self.assertAlmostEqual(result.s, .3)
+        self.assertAlmostEqual(result.cy, .17)
+
+    def test_head_or_face_outside_frame_rejects(self):
+        for nose, reason in ((Landmark(.5, .1, 1), "head_cut"),  # head top .1 - .15 < 0
+                             (Landmark(-.1, .3, 1), "face_out_of_frame"),
+                             (Landmark(.5, -.01, 0), "face_out_of_frame")):
+            with self.subTest(nose=nose):
+                points = fixture()
+                points[0] = nose
+                with self.assertRaisesRegex(InvalidPose, reason):
+                    measure_pose(points)
 
     def test_invalid_optional_landmarks_are_ignored(self):
         for index in (2, 5, 23, 24, 25, 26, 27, 28):
@@ -67,6 +85,8 @@ class MeasurementTests(unittest.TestCase):
         for index in (0, 11, 12):
             for point in (None, Landmark(.5, .3, .499), Landmark(math.nan, .3, 1),
                           Landmark(.5, math.inf, 1), Landmark(.5, .3, math.nan)):
+                if index == 0 and point is not None and math.isfinite(point.x) and math.isfinite(point.y):
+                    continue  # the nose only needs finite coordinates
                 with self.subTest(index=index, point=point):
                     points = fixture()
                     points[index] = point
@@ -95,16 +115,16 @@ class MeasurementTests(unittest.TestCase):
         points[2], points[5] = Landmark(.4, 2, 1), None
         self.assertEqual(measure_pose(points).cy, 1)
 
-    def test_clamped_nose_and_derived_head_not_silently_clamped(self):
+    def test_head_near_top_edge_is_kept_exactly(self):
         points = fixture("chestUp")
-        points[0] = Landmark(.5, -1, 1)
-        # noseY=0, shoulderMidY=.4, headTop=-.2: exact s=h=.6
+        points[0] = Landmark(.5, .14, 1)
+        # noseY=.14, shoulderMidY=.4, headTop=.01: exact s=h=.39
         result = measure_pose(points)
-        self.assertAlmostEqual(result.h, .6)
-        self.assertAlmostEqual(result.s, .6)
+        self.assertAlmostEqual(result.h, .39)
+        self.assertAlmostEqual(result.s, .39)
 
     def test_reject_invalid_final_spans(self):
-        for nose_y, shoulder_y, ankle_y in ((.6, .4, .9), (.4, .4, .9), (0, .4, 2), (.2, .4, .15)):
+        for nose_y, shoulder_y, ankle_y in ((.6, .4, .9), (.4, .4, .9), (.2, .4, .15)):
             with self.subTest(nose=nose_y, shoulder=shoulder_y, ankle=ankle_y):
                 points = fixture()
                 points[0] = Landmark(.5, nose_y, 1)
@@ -117,11 +137,27 @@ class MeasurementTests(unittest.TestCase):
 class CountTests(unittest.TestCase):
     def test_accept_requires_independent_evidence_and_one_pose(self):
         self.assertTrue(analyze_detections([fixture()], [BOX], 400, 600).accepted)
-        for evidence in (None, [], [PersonBox(.499, 0, 0, 1, 1)], [BOX, BOX],
-                         [BOX, PersonBox(.2, 0, 0, .2, .3)]):
+        for evidence in (None, [], [PersonBox(.299, 0, 0, 1, 1)], [BOX, BOX],
+                         [BOX, PersonBox(.2, 0, 0, .2, .15)]):
             with self.subTest(evidence=evidence):
                 self.assertFalse(analyze_detections([fixture()], evidence, 400, 600).accepted)
-        self.assertTrue(analyze_detections([fixture()], [PersonBox(.5, 0, 0, 1, 1)], 400, 600).accepted)
+        self.assertTrue(analyze_detections([fixture()], [PersonBox(.3, 0, 0, 1, 1)], 400, 600).accepted)
+
+    def test_small_bystanders_do_not_count_as_a_second_subject(self):
+        bystander = PersonBox(.9, 0, 0, .1, .149)  # under 15% of the main height
+        result = analyze_detections([fixture()], [BOX, bystander], 400, 600)
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.person, BOX)  # main = highest score
+
+    def test_person_too_small_and_hand_dominant(self):
+        small = PersonBox(.9, .2, .15, .8, .34)  # 19% of the frame height
+        points = [None if p is None else Landmark(p.x, .15 + p.y * .1, p.visibility) for p in fixture("chestUp")]
+        self.assertEqual(analyze_detections([points], [small], 400, 600).reason, "person_too_small")
+        points = fixture()
+        points[15], points[19] = Landmark(.3, .3, 1), Landmark(.3, .95, 1)  # 390 px hand, 180 px head
+        self.assertEqual(analyze_detections([points], [BOX], 400, 600).reason, "hand_dominant")
+        points[19] = Landmark(.3, .35, 1)
+        self.assertTrue(analyze_detections([points], [BOX], 400, 600).accepted)
 
     def test_zero_or_second_pose_reject_even_if_second_is_invalid(self):
         for poses in ([], [fixture(), []], [fixture(), fixture()]):
@@ -160,25 +196,34 @@ class SquareCropTests(unittest.TestCase):
 
     def test_landscape_fallback_recomputes_framing_and_measurements(self):
         points = fixture()
+        points[0] = Landmark(.5, .3, .1)  # low visibility: still the head reference
+        points[2], points[5] = Landmark(.4, .26, 1), Landmark(.6, .28, 1)
         points[11], points[12] = Landmark(.05, .4, 1), Landmark(.95, .4, 1)
         result = analyze_photo_detections([points], [BOX], 400, 400)
         self.assertTrue(result.accepted)
         self.assertEqual(result.crop, "landscape_4_3")
         self.assertEqual(result.composition.f, "kneeUp")  # ankles outside crop
-        self.assertAlmostEqual(result.composition.s, .4)
-        self.assertAlmostEqual(result.composition.h, .65/.75)
-        self.assertAlmostEqual(result.composition.cy, (.17-.125)/.75)
+        y = lambda v: (v - .125) / .75
+        head = y(.3) - (y(.4) - y(.3)) / 2
+        self.assertAlmostEqual(result.composition.s, y(.4) - head)
+        self.assertAlmostEqual(result.composition.h, y(.75) - head)
+        self.assertAlmostEqual(result.composition.cy, y(.27))
 
     def test_reject_if_both_crops_cut_required_landmark(self):
         points = fixture()
-        points[0] = Landmark(.5, .05, 1)
+        points[0] = Landmark(.5, .1, 1)  # head top exactly 0, above the 4:3 crop
         points[11], points[12] = Landmark(.05, .3, 1), Landmark(.95, .3, 1)
         result = analyze_photo_detections([points], [BOX], 400, 400)
         self.assertFalse(result.accepted)
         self.assertEqual(result.reason, "square_crop_cuts_person")
 
-    def test_second_person_cannot_be_hidden_by_crop(self):
+    def test_small_bystander_outside_the_crop_is_dropped(self):
         result = analyze_photo_detections([fixture()], [BOX, PersonBox(.6, 0, 0, .1, .1)], 400, 400)
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.crop, "portrait_3_4")
+
+    def test_second_person_cannot_be_hidden_by_crop(self):
+        result = analyze_photo_detections([fixture()], [BOX, PersonBox(.6, 0, 0, .1, .3)], 400, 400)
         self.assertFalse(result.accepted)
         self.assertEqual(result.reason, "ambiguous_person_count")
 

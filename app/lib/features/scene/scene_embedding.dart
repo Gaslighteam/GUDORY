@@ -4,6 +4,7 @@ import 'package:image/image.dart' as img;
 import '../../core/contracts.dart';
 import '../../core/models.dart';
 import 'clip_runner.dart';
+import 'composition_model.dart';
 import 'model_manager.dart';
 import 'nv21_frame.dart';
 import 'person_mask.dart';
@@ -21,14 +22,19 @@ class SceneEmbeddingTrace {
     this.foreground = 0,
     this.pixels = 0,
     this.sourceForeground = 0,
+    this.personX,
   });
   final int width, height, sensorRotation, quarterTurns;
   final int maskWidth, maskHeight, foreground, pixels;
   final int sourceForeground;
+
+  /// Mean x of the masked person in the shot, 0~1 (recommender v2 side).
+  final double? personX;
   String get summary =>
       'input=${width}x$height sensor=$sensorRotation '
       'q=$quarterTurns mask=${maskWidth}x$maskHeight foreground=$foreground/$pixels '
-      'source_foreground=$sourceForeground';
+      'source_foreground=$sourceForeground'
+      '${personX == null ? '' : ' person_x=${personX!.toStringAsFixed(2)}'}';
 }
 
 /// Bounded reason codes, not native exception messages or personal file paths.
@@ -214,10 +220,12 @@ PreparedRecommendationInput prepareRecommendationInput(
   final pixelCount = image.width * image.height;
   final mean = sums.map((s) => (s / pixelCount).round()).toList();
   var filled = 0;
+  var sumX = 0.0;
   for (final p in image) {
     if (person.getPixel(p.x, p.y).r >= 128) {
       p.setRgb(mean[0], mean[1], mean[2]);
       filled++;
+      sumX += p.x;
     }
   }
   final trace = SceneEmbeddingTrace(
@@ -230,6 +238,7 @@ PreparedRecommendationInput prepareRecommendationInput(
     foreground: filled,
     pixels: pixelCount,
     sourceForeground: sourceForeground,
+    personX: personCentroidX(sumX, filled, image.width),
   );
   if (filled == 0) {
     throw SceneFailure(

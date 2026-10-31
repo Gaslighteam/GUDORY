@@ -7,14 +7,15 @@ import importlib.metadata
 from pathlib import Path
 import sys
 
-from background_clip import ClipEncoder, SelfieSegmenter, SegmentationFailure, background_embedding
+from background_clip import (ClipEncoder, NOT_REAL_PERSON, PersonPrompts, SelfieSegmenter,
+                             SegmentationFailure, background_embedding)
 from import_photos import IMAGE_EXTENSIONS
 from pose_analysis import MediaPipePhotoAnalyzer, center_crop_rect, load_photo
 from recommendation_assets import Sample, build_asset, serialize_asset
 from aggregate_baseline import load_baseline, compare_baseline
 
 
-def collect_samples(root, pose, segmenter, encoder, team_weight=3, supplementary_weight=1):
+def collect_samples(root, pose, segmenter, encoder, team_weight=3, supplementary_weight=1, prompts=None):
     counts = Counter()
     samples = []
     root = root.resolve()
@@ -39,6 +40,10 @@ def collect_samples(root, pose, segmenter, encoder, team_weight=3, supplementary
                 else:
                     shot = image.copy()
                 with shot:
+                    if (prompts is not None and result.person is not None and
+                            prompts.not_real_probability(shot, result.person, encoder) >= NOT_REAL_PERSON):
+                        counts["rejected/not_real_person"] += 1
+                        continue
                     vector = background_embedding(shot, segmenter, encoder)
         except SegmentationFailure:
             counts["rejected/segmentation"] += 1
@@ -112,6 +117,8 @@ def main(argv=None):
     parser.add_argument("--report", type=Path, default=Path("tools/report.md"))
     parser.add_argument("--team-weight", type=float, default=3)
     parser.add_argument("--supplementary-weight", type=float, default=1)
+    parser.add_argument("--person-prompts", type=Path, default=Path(__file__).with_name("person_prompts.npz"),
+                        help="CLIP text embeddings for the not-a-real-person filter")
     parser.add_argument("--baseline", type=Path, default=Path(__file__).with_name("recommendation_baseline.json"),
                         help="Aggregate-only baseline used for report comparison, never training")
     args = parser.parse_args(argv)
@@ -126,7 +133,8 @@ def main(argv=None):
         stack.callback(segmenter.close)
         encoder = ClipEncoder(args.clip_model)
         samples, counts = collect_samples(args.photos, pose, segmenter, encoder,
-                                         args.team_weight, args.supplementary_weight)
+                                         args.team_weight, args.supplementary_weight,
+                                         PersonPrompts(args.person_prompts))
     asset, diagnostics = build_asset(samples)
     payload = serialize_asset(asset)
     metadata = {name: importlib.metadata.version(name) for name in

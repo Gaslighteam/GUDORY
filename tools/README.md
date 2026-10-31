@@ -54,6 +54,12 @@ different checkout. `--team-weight` defaults to 3, `--supplementary-weight` to 1
 Source folders must remain separate; all non-team sources use supplementary
 weight. No labels.csv, categories or text embeddings are used.
 
+Before embedding, the person crop (detector box + 10%) is compared with the CLIP
+text embeddings in `person_prompts.npz`; a "not a real person" probability of 0.85
+or more (painting, statue, poster, mannequin, mirror) rejects the photo.
+`person_prompts.py` regenerates that file and needs the CLIP text model and
+`tokenizers`, which the pipeline itself does not.
+
 Segmentation errors/empty/full masks reject the sample instead of embedding its
 person. The existing shot crop is reused before segmentation. CLIP uses RGB,
 short-side 224 bicubic resize, centre crop and the exact mean/std from AGENTS.md

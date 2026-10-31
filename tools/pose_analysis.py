@@ -15,12 +15,22 @@ from typing import Callable, Sequence
 
 # MediaPipe Pose landmark order (not left/right eye inner/outer indices).
 NOSE, LEFT_EYE, RIGHT_EYE = 0, 2, 5
+HEAD = (NOSE, LEFT_EYE, RIGHT_EYE)
 SHOULDERS, HIPS, KNEES, ANKLES = (11, 12), (23, 24), (25, 26), (27, 28)
 ANCHORS = (("chestUp", SHOULDERS), ("waistUp", HIPS),
            ("kneeUp", KNEES), ("fullBody", ANKLES))
 VISIBILITY = 0.5
 PERSON_CANDIDATE_SCORE = 0.2
-PERSON_ACCEPT_SCORE = 0.5
+# The main person needs this detector score when exactly one pose agrees with
+# its box (0.5 lost hundreds of clear single-person photos; reviewed 2026-11-01).
+PERSON_ACCEPT_SCORE = 0.3
+# Other person boxes shorter than this fraction of the main person are
+# background passers-by and do not count as a second subject.
+BYSTANDER_HEIGHT = 0.15
+# Training-data quality filters (report.md lists how many each removes).
+MIN_PERSON_HEIGHT = 0.2   # main person box height / frame height
+MAX_HAND_TO_HEAD = 2.0    # hand length / head-top-to-shoulder height, in pixels
+WRISTS_TO_TIPS = ((15, (17, 19)), (16, (18, 20)))
 
 
 @dataclass(frozen=True)
@@ -59,6 +69,7 @@ class Analysis:
     height: int = 0
     source_orientation: str | None = None
     crop: str = "none"
+    person: PersonBox | None = None  # main person box in this (cropped) frame
 
     @property
     def accepted(self) -> bool:
@@ -83,28 +94,44 @@ def _point(points: Sequence[Landmark | None], index: int) -> tuple[float, float]
     return _clamp(point.x), _clamp(point.y)
 
 
+def _estimated(points: Sequence[Landmark | None], index: int) -> tuple[float, float] | None:
+    """Head reference (AGENTS.md): nose/eyes use the coordinates the model always
+    estimates, whatever their visibility, so back views and profiles are kept.
+    Not clamped: a head outside the frame must stay detectable."""
+    if index >= len(points) or (point := points[index]) is None:
+        return None
+    if not (math.isfinite(point.x) and math.isfinite(point.y)):
+        return None
+    return point.x, point.y
+
+
 def measure_pose(points: Sequence[Landmark | None]) -> Composition:
     """Pure coordinate math; does NOT establish person count.
 
-    Validate finite coordinates/visibility before clamping each landmark x/y.
-    Midpoints use those clamped coordinates. Head top is the exact derived
-    formula, without a second clamp; reject final spans outside (0, 1] rather
-    than silently changing their values. Both members are required for anchors.
+    Both shoulders are required (finite, visibility >= 0.5) and clamped; the
+    nose and eyes are estimated coordinates regardless of visibility. A head
+    top or nose outside the frame rejects the photo (head or face cut off).
+    Reject final spans outside (0, 1] rather than silently changing their
+    values. Both members are required for anchors.
     """
-    nose = _point(points, NOSE)
+    nose = _estimated(points, NOSE)
     shoulders = [_point(points, i) for i in SHOULDERS]
     if nose is None or any(p is None for p in shoulders):
         raise InvalidPose("missing_required_landmarks")
     sx = (shoulders[0][0] + shoulders[1][0]) / 2
     sy = (shoulders[0][1] + shoulders[1][1]) / 2
+    if not (0 <= nose[0] <= 1 and 0 <= nose[1] <= 1):
+        raise InvalidPose("face_out_of_frame")
     head_top = nose[1] - (sy - nose[1]) / 2
+    if head_top < 0:
+        raise InvalidPose("head_cut")
     framing, anchor_y = "chestUp", sy
     for name, pair in ANCHORS[1:]:
         left, right = (_point(points, i) for i in pair)
         if left is not None and right is not None:
             framing, anchor_y = name, (left[1] + right[1]) / 2
-    eyes = [_point(points, i) for i in (LEFT_EYE, RIGHT_EYE)]
-    eye_ys = [p[1] for p in eyes if p is not None]
+    eyes = [_estimated(points, i) for i in (LEFT_EYE, RIGHT_EYE)]
+    eye_ys = [_clamp(p[1]) for p in eyes if p is not None]
     cy = sum(eye_ys) / len(eye_ys) if eye_ys else nose[1]
     h, scale = anchor_y - head_top, sy - head_top
     if (not all(math.isfinite(v) for v in (h, scale, sx, cy))
@@ -122,8 +149,10 @@ def analyze_detections(
     """Fail closed on absent/ambiguous person evidence, even for one pose.
 
     Detector contract: return ALL post-NMS person boxes scoring >= 0.2,
-    without a top-1 cap; None means unavailable. Scores 0.2..<0.5 are
-    ambiguous, including any additional box. No duplicate-box merging here.
+    without a top-1 cap; None means unavailable. The highest-scoring box is the
+    main person and needs PERSON_ACCEPT_SCORE; any other box at least
+    BYSTANDER_HEIGHT of its height is a second subject. Exactly one pose.
+    No duplicate-box merging here.
     """
     if width <= 0 or height <= 0:
         return Analysis("invalid_image")
@@ -144,7 +173,12 @@ def analyze_detections(
             return result("invalid_person_evidence")
         if box.score >= PERSON_CANDIDATE_SCORE:
             candidates.append(box)
-    if len(candidates) != 1 or candidates[0].score < PERSON_ACCEPT_SCORE:
+    candidates.sort(key=lambda b: -b.score)
+    if not candidates or candidates[0].score < PERSON_ACCEPT_SCORE:
+        return result("ambiguous_person_count")
+    main_height = _clamp(candidates[0].bottom) - _clamp(candidates[0].top)
+    if any(_clamp(b.bottom) - _clamp(b.top) >= BYSTANDER_HEIGHT * main_height
+           for b in candidates[1:]):
         return result("ambiguous_person_count")
     # Count all returned poses BEFORE landmark filtering: an invalid second pose
     # is still evidence of another person, not something to discard first.
@@ -155,12 +189,33 @@ def analyze_detections(
     except InvalidPose as error:
         return result(str(error))
     box = candidates[0]
-    for i in (NOSE, *SHOULDERS):
-        x, y = _point(poses[0], i)
+    for x, y in (_estimated(poses[0], NOSE), *(_point(poses[0], i) for i in SHOULDERS)):
         if not (_clamp(box.left) <= x <= _clamp(box.right)
                 and _clamp(box.top) <= y <= _clamp(box.bottom)):
             return result("person_pose_mismatch")
-    return result("accepted", composition)
+    if main_height < MIN_PERSON_HEIGHT:
+        return result("person_too_small")
+    if _hand_to_head(poses[0], width, height) >= MAX_HAND_TO_HEAD:
+        return result("hand_dominant")
+    return replace(result("accepted", composition), person=box)
+
+
+def _hand_to_head(points, width: int, height: int) -> float:
+    """Largest visible hand (wrist to index/pinky) over the head-top-to-shoulder
+    height, in pixels. Big when a hand fills the frame, or the body is lying or
+    folded so the head measure collapses: either way the measures are unreliable."""
+    nose = _estimated(points, NOSE)
+    shoulders = [_point(points, i) for i in SHOULDERS]
+    sy = (shoulders[0][1] + shoulders[1][1]) / 2
+    head = (sy - (nose[1] - (sy - nose[1]) / 2)) * height
+    best = 0.0
+    for wrist, tips in WRISTS_TO_TIPS:
+        if (w := _point(points, wrist)) is None:
+            continue
+        for tip in tips:
+            if (t := _point(points, tip)) is not None:
+                best = max(best, math.hypot((w[0] - t[0]) * width, (w[1] - t[1]) * height))
+    return best / head if head > 0 else math.inf
 
 
 def load_photo(path: Path):
@@ -207,13 +262,14 @@ def analyze_photo_detections(poses, people, width: int, height: int) -> Analysis
     for portrait in (True, False):
         left, top, right, bottom = center_crop_rect(width, height, portrait)
         cw, ch = right - left, bottom - top
-        required = [_point(poses[0], i) for i in (NOSE, *SHOULDERS)]
+        required = [_estimated(poses[0], NOSE), *(_point(poses[0], i) for i in SHOULDERS)]
         if not all(left <= x * width <= right and top <= y * height <= bottom
                    for x, y in required):
             continue
         cropped_points = []
         for index in range(len(poses[0])):
-            point = _point(poses[0], index)
+            # Head reference points keep their estimate whatever the visibility.
+            point = (_estimated if index in HEAD else _point)(poses[0], index)
             if point is None:
                 cropped_points.append(None)
                 continue
@@ -228,6 +284,10 @@ def analyze_photo_detections(poses, people, width: int, height: int) -> Analysis
             (_clamp(box.top) * height - top) / ch,
             (_clamp(box.right) * width - left) / cw,
             (_clamp(box.bottom) * height - top) / ch) for box in people]
+        # People were already counted on the full frame; a bystander wholly
+        # outside the crop is simply not in the shot.
+        cropped_boxes = [b for b in cropped_boxes
+                         if _clamp(b.left) < _clamp(b.right) and _clamp(b.top) < _clamp(b.bottom)]
         result = analyze_detections([cropped_points], cropped_boxes, cw, ch)
         return replace(result, source_orientation=source,
                        crop="portrait_3_4" if portrait else "landscape_4_3")

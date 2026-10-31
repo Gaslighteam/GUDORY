@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/contracts.dart';
 import '../../core/models.dart';
+import 'composition_model.dart';
 import 'recommendation_data.dart';
 import 'scene_embedding.dart';
 
@@ -45,6 +46,7 @@ class SceneRecommender implements Recommender {
     SceneEmbedder? embedder,
     AssetBundle? bundle,
     Future<String> Function()? loadAsset,
+    Future<String> Function()? loadModelAsset,
     SceneView Function(CameraFrame, ShotOrientation)? viewForFrame,
     this.cacheDuration = const Duration(seconds: 3),
     this.requestTimeout = const Duration(seconds: 10),
@@ -53,15 +55,27 @@ class SceneRecommender implements Recommender {
        _loadAsset =
            loadAsset ??
            (() => (bundle ?? rootBundle).loadString('assets/recommend.json')),
+       // An injected v1 asset (tests) without a v2 one means v1 only.
+       _loadModelAsset =
+           loadModelAsset ??
+           (loadAsset != null
+               ? null
+               : () => (bundle ?? rootBundle).loadString(
+                   'assets/recommend_v2.json',
+                 )),
        _viewForFrame = viewForFrame ?? _portraitView,
        _now = now ?? DateTime.now;
 
   final SceneEmbedder _embedder;
   final Future<String> Function() _loadAsset;
+  final Future<String> Function()? _loadModelAsset;
   final SceneView Function(CameraFrame, ShotOrientation) _viewForFrame;
   final DateTime Function() _now;
   final Duration cacheDuration, requestTimeout;
   RecommendationData _data = RecommendationData.empty();
+
+  /// Recommender v2; null = v1 cluster medians only.
+  CompositionModel? _model;
   Future<void>? _loading;
   bool _disposed = false, _timedOut = false;
   int _assetGeneration = 0, _generation = 0, _inferences = 0;
@@ -98,6 +112,18 @@ class SceneRecommender implements Recommender {
         _assetStatus = 'asset/load-or-parse-failed';
       }
     }
+    final loadModel = _loadModelAsset;
+    if (loadModel == null) return;
+    try {
+      final text = await loadModel().timeout(requestTimeout);
+      final model = await compute(
+        CompositionModel.parse,
+        text,
+      ).timeout(requestTimeout);
+      if (!_disposed && generation == _assetGeneration) _model = model;
+    } catch (_) {
+      /* v2 is optional: v1 medians keep working. */
+    }
   }
 
   @override
@@ -117,6 +143,7 @@ class SceneRecommender implements Recommender {
     if (_disposed) return;
     _assetGeneration++;
     _data = RecommendationData.empty();
+    _model = null;
     _loading = null;
     invalidateEmbedding();
     await _assets();
@@ -188,6 +215,7 @@ class SceneRecommender implements Recommender {
       stage = 'matching';
       match = await compute(_score, (
         _data,
+        _model,
         embedding,
         level,
         orientation,
@@ -196,7 +224,9 @@ class SceneRecommender implements Recommender {
         status = 'fallback/invalidated';
         return _data.fallback(level, orientation);
       }
-      status = match.recommendation.neighbors > 0
+      status = match.recommendation.target.source.startsWith('recommend-v2')
+          ? 'matched/v2'
+          : match.recommendation.neighbors > 0
           ? 'matched'
           : 'fallback/no-positive-neighbors';
       return match.recommendation;
@@ -319,5 +349,33 @@ class SceneRecommender implements Recommender {
 }
 
 SceneMatch _score(
-  (RecommendationData, SceneEmbedding, int, ShotOrientation) job,
-) => job.$1.match(job.$2.values, job.$3, job.$4, job.$2.variant);
+  (RecommendationData, CompositionModel?, SceneEmbedding, int, ShotOrientation)
+  job,
+) {
+  final (data, model, embedding, level, orientation) = job;
+  final v1 = data.match(
+    embedding.values,
+    level,
+    orientation,
+    embedding.variant,
+  );
+  if (model == null) return v1;
+  try {
+    return SceneMatch(
+      Recommendation(
+        target: model.predict(
+          embedding.values,
+          level,
+          orientation,
+          personX: embedding.trace?.personX,
+        ),
+        neighbors: model.photos,
+        modelVariant: embedding.variant,
+      ),
+      v1.cosine,
+      recommendationLevel(level),
+    );
+  } catch (_) {
+    return v1; // any v2 failure keeps the v1 recommendation
+  }
+}

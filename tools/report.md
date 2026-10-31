@@ -190,3 +190,32 @@ json_bytes | 23888 | 107801 | +83913
 Configuration matches fixed baseline: yes.
 Aggregate asset SHA-256 matches fixed baseline: no.
 The fixed baseline is never overwritten automatically. No photo IDs or per-photo history are stored.
+
+## v2 training data: step-1 filters (2026-11-01)
+
+The asset above is unchanged; these counts belong to the v2 recommender work.
+Training set chosen by Taeho: the 719 CADB (BMVC 2021) `human` photos that passed
+the previous pose filter (`docs/cadb.md`). Rules now in `tools/pose_analysis.py`
+and `background_clip.PersonPrompts`. Aggregate counts only.
+
+Filter | Removed from the 719
+--- | ---:
+Hand ≥ 2× head-to-shoulder height (hand in front of the lens, lying/folded body) | 9
+Main person box < 20% of the frame height | 9
+Person crop scored ≥ 0.85 "not a real person" (painting/statue/poster/mannequin/mirror) | 3
+Head top above the frame | 1
+Nose outside the frame | 0
+**Remaining for training** | **697**
+
+Other rule changes:
+- Back views and profiles: nose/eyes use the model's estimated coordinates
+  regardless of visibility (AGENTS.md head reference); only both shoulders
+  are required. The old visibility rule rejected 1 of 5,603 team/Open Images
+  photos, so this changes little.
+- Multi-person: exactly one pose, main person = top detector box with score ≥ 0.3
+  (was 0.5). Another box ≥ 15% of the main person's height still rejects. Smaller
+  boxes are passers-by and are kept. On the 5,603 team/Open Images photos (replay of
+  cached detections) this keeps about 3,506 instead of 3,256. Of the
+  remaining multi-person rejects, 1,011 have a real second person and 572 have no pose.
+- The 719 were selected under the old person-count rule, so the relaxed rule is
+  not used to add CADB photos.
