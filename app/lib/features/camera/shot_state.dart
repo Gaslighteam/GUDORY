@@ -1,7 +1,4 @@
-// Shooting state: references, category selection.
-import 'dart:convert';
-
-import 'package:flutter/services.dart';
+// Shooting state: references, mode and recommend level.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -84,89 +81,28 @@ class ReferenceNotifier extends Notifier<ReferenceState> {
   void clear() => state = const ReferenceState();
 }
 
-// ---- Category (auto guess + suggestions + manual pin) ----
+// ---- Shooting mode (추천 / 맞춤) and recommend level ----
 
-class CategoryState {
-  const CategoryState({
-    this.categories = const [],
-    this.hashtagLabels = const {},
-    this.guess,
-    this.manualId,
-  });
+class ModeState {
+  const ModeState({this.mode = ShootMode.recommend, this.level = 3});
 
-  final List<CategoryInfo> categories;
-  final Map<String, String> hashtagLabels;
-  final CategoryGuess? guess;
-  final String? manualId;
+  final ShootMode mode;
 
-  String? get selectedId => manualId ?? guess?.primaryId;
-
-  String labelOf(String id) =>
-      categories.where((c) => c.id == id).firstOrNull?.label ?? id;
-
-  CategoryState copyWith({
-    List<CategoryInfo>? categories,
-    Map<String, String>? hashtagLabels,
-    CategoryGuess? guess,
-    String? Function()? manualId,
-  }) => CategoryState(
-    categories: categories ?? this.categories,
-    hashtagLabels: hashtagLabels ?? this.hashtagLabels,
-    guess: guess ?? this.guess,
-    manualId: manualId != null ? manualId() : this.manualId,
-  );
+  /// 1 = 인물 중심 (person largest) … 5 = 배경 중심.
+  final int level;
 }
 
-final categoryProvider = NotifierProvider<CategoryNotifier, CategoryState>(
-  CategoryNotifier.new,
+final modeProvider = NotifierProvider<ModeNotifier, ModeState>(
+  ModeNotifier.new,
 );
 
-class CategoryNotifier extends Notifier<CategoryState> {
+class ModeNotifier extends Notifier<ModeState> {
   @override
-  CategoryState build() {
-    _load();
-    return const CategoryState();
-  }
+  ModeState build() => const ModeState();
 
-  /// TODO(lead): take categories from Seojun's CompositionLibrary and the
-  /// guess from SceneClassifier when feat/scene lands.
-  Future<void> _load() async {
-    final raw =
-        jsonDecode(await rootBundle.loadString('assets/categories.json'))
-            as Map<String, dynamic>;
-    final categories = [
-      for (final c in raw['categories'] as List)
-        CategoryInfo(
-          id: c['id'] as String,
-          label: c['label'] as String,
-          prompts: List<String>.from(c['prompts'] as List),
-          hashtagIds: List<String>.from(c['hashtagIds'] as List),
-        ),
-    ];
-    final hashtags = {
-      for (final h in raw['hashtags'] as List)
-        h['id'] as String: h['label'] as String,
-    };
-    state = state.copyWith(
-      categories: categories,
-      hashtagLabels: hashtags,
-      guess: categories.isEmpty
-          ? null
-          : CategoryGuess(
-              primaryId: categories.first.id,
-              suggestedIds: [for (final c in categories.skip(1).take(2)) c.id],
-              hashtagIds: categories.first.hashtagIds,
-              confidence: 0,
-              modelVariant: 'fake',
-            ),
-    );
-  }
+  void setMode(ShootMode mode) =>
+      state = ModeState(mode: mode, level: state.level);
 
-  void updateGuess(CategoryGuess guess) => state = state.copyWith(guess: guess);
-
-  /// Tap a chip: pin it, or unpin when it is already pinned.
-  void tap(String id) =>
-      state = state.copyWith(manualId: () => state.manualId == id ? null : id);
-
-  void clearManual() => state = state.copyWith(manualId: () => null);
+  void setLevel(int level) =>
+      state = ModeState(mode: state.mode, level: level.clamp(1, 5));
 }

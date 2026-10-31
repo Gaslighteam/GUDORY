@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/contracts.dart';
@@ -46,10 +47,12 @@ class CameraService extends ChangeNotifier implements FrameBus {
       _cameras.any((c) => c.lensDirection == CameraLensDirection.front) &&
       _cameras.any((c) => c.lensDirection == CameraLensDirection.back);
 
-  /// Zoom presets shown as chips; only levels the device supports.
+  /// Zoom presets `.6 / 1x / 2 / 3`; only levels the device supports.
+  /// (Ultra-wide phones report ~0.6 as the minimum ratio.)
   List<double> get zoomPresets => [
-    if (minZoom <= 0.55) 0.5,
+    if (minZoom <= 0.61) 0.6,
     1,
+    if (maxZoom >= 2) 2,
     if (maxZoom >= 3) 3,
   ];
 
@@ -72,7 +75,8 @@ class CameraService extends ChangeNotifier implements FrameBus {
       }
       final controller = CameraController(
         _cameras[_index],
-        ResolutionPreset.high,
+        // The preset also sets the still size; "high" gave 1280x720 photos.
+        ResolutionPreset.max,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.nv21,
       );
@@ -86,6 +90,7 @@ class CameraService extends ChangeNotifier implements FrameBus {
       maxZoom = await controller.getMaxZoomLevel();
       zoom = 1.0.clamp(minZoom, maxZoom);
       await controller.setFlashMode(flashMode);
+      await _lockPortrait(controller);
       await _syncStream();
       error = null;
     } catch (e) {
@@ -121,6 +126,18 @@ class CameraService extends ChangeNotifier implements FrameBus {
     zoom = level.clamp(minZoom, maxZoom);
     await controller.setZoomLevel(zoom);
     _notify();
+  }
+
+  /// Capture is always portrait. Locking it to a landscape orientation makes
+  /// CameraPreview rotate the live view inside our portrait-locked UI (the
+  /// "wobbly" preview), so landscape photos are rotated after capture
+  /// instead (framing.dart).
+  Future<void> _lockPortrait(CameraController controller) async {
+    try {
+      await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
+    } on CameraException {
+      // Not fatal.
+    }
   }
 
   Future<void> cycleFlash() async {

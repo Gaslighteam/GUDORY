@@ -19,9 +19,23 @@ enum InstructionKey {
   fitWholeBody, // fit the whole body in frame
   noPerson, // no person visible
   aligned, // aligned: hold still
+  turnLandscape, // target orientation differs from how the phone is held
+  turnPortrait,
+  addReference, // custom mode with no reference
 }
 
-/// Normalized 0~1 coordinates in portrait screen space.
+/// 추천 (recommend) or 맞춤 (custom, reference-driven).
+enum ShootMode { recommend, custom }
+
+/// How the phone is held for the shot (the UI itself stays portrait).
+enum ShotOrientation { portrait, landscape }
+
+/// How much of the person is in the shot, by the lowest visible anchor:
+/// shoulders / hips / knees / ankles (AGENTS.md §4 framing table).
+enum Framing { chestUp, waistUp, kneeUp, fullBody }
+
+/// Normalized 0~1 coordinates in shot space (the frame as the saved photo
+/// will look: portrait, or landscape when the phone is held sideways).
 class Landmark {
   const Landmark({required this.x, required this.y, required this.visibility});
   final double x;
@@ -34,6 +48,7 @@ class PoseFrame {
     required this.landmarks,
     required this.imageWidth,
     required this.imageHeight,
+    this.orientation = ShotOrientation.portrait,
     required this.rollDeg,
     required this.pitchDeg,
     required this.at,
@@ -42,11 +57,14 @@ class PoseFrame {
   /// 33 points in ML Kit PoseLandmarkType order. null when no person.
   final List<Landmark>? landmarks;
 
-  /// Size after rotation correction.
+  /// In shot space (landscape: width > height).
   final int imageWidth;
   final int imageHeight;
 
-  /// Sensors. Upright portrait = 0, 0.
+  /// From the accelerometer, hysteresis 45°/60°.
+  final ShotOrientation orientation;
+
+  /// Sensors, relative to the shot orientation; level = 0, 0.
   final double rollDeg;
   final double pitchDeg;
   final DateTime at;
@@ -54,10 +72,12 @@ class PoseFrame {
 
 class TargetComposition {
   const TargetComposition({
+    this.framing = Framing.fullBody,
     required this.personHeightRatio,
     required this.personCenterX,
     required this.personCenterY,
     this.horizonY,
+    this.orientation = ShotOrientation.portrait,
     this.tolHeight = 0.10,
     this.tolX = 0.08,
     this.tolY = 0.08,
@@ -65,29 +85,51 @@ class TargetComposition {
     required this.source,
   });
 
-  /// (top of head ~ ankles) / frame height, 0~1.
+  /// Which anchor [personHeightRatio] is measured to.
+  final Framing framing;
+
+  /// (head top ~ framing anchor) / frame height, 0~1.
   final double personHeightRatio;
 
-  /// Center x of shoulders+hips, 0~1.
+  /// Shoulder midpoint x, 0~1.
   final double personCenterX;
 
-  /// Hip center y, 0~1.
+  /// Eye line y (mean of both eyes), 0~1.
   final double personCenterY;
   final double? horizonY;
+  final ShotOrientation orientation;
   final double tolHeight;
   final double tolX;
   final double tolY;
   final double tolRollDeg;
 
-  /// Either `'reference'` or `'category:<id>'`.
+  /// `'reference'`, `'recommend:<1-5>'` or `'fallback'`.
   final String source;
 
+  /// Level-3 default (knee-up) until a recommendation arrives.
   static const fallback = TargetComposition(
-    personHeightRatio: 0.6,
+    framing: Framing.kneeUp,
+    personHeightRatio: 0.72,
     personCenterX: 0.5,
-    personCenterY: 0.6,
+    personCenterY: 0.28,
     source: 'fallback',
   );
+}
+
+class Recommendation {
+  const Recommendation({
+    required this.target,
+    required this.neighbors,
+    required this.modelVariant,
+  });
+
+  final TargetComposition target;
+
+  /// Photos behind the target (0 = fallback median only, no CLIP).
+  final int neighbors;
+
+  /// 'q8' | 'fp16' | 'none'
+  final String modelVariant;
 }
 
 class CoachInstruction {
@@ -116,40 +158,6 @@ class CoachInstruction {
 
   /// For debug overlay.
   final Map<CoachAxis, double> errors;
-}
-
-class CategoryGuess {
-  const CategoryGuess({
-    required this.primaryId,
-    required this.suggestedIds,
-    required this.hashtagIds,
-    required this.confidence,
-    required this.modelVariant,
-  });
-
-  final String primaryId;
-
-  /// At most 2.
-  final List<String> suggestedIds;
-  final List<String> hashtagIds;
-  final double confidence;
-
-  /// 'q8' | 'fp16' | 'labeling'
-  final String modelVariant;
-}
-
-class CategoryInfo {
-  const CategoryInfo({
-    required this.id,
-    required this.label,
-    required this.prompts,
-    required this.hashtagIds,
-  });
-
-  final String id;
-  final String label;
-  final List<String> prompts;
-  final List<String> hashtagIds;
 }
 
 class CameraFrame {

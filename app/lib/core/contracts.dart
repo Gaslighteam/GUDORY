@@ -27,17 +27,18 @@ abstract class WhoMoves {
   Who decide(CameraFrame live, String referencePath, double subjectXError);
 }
 
-/// Seojun. The UI calls this every ~3 seconds.
-abstract class SceneClassifier {
+/// Seojun. The UI calls this every ~3 s in recommend mode.
+abstract class Recommender {
+  /// Loads recommend.json + CLIP.
   Future<void> warmUp();
-  Future<CategoryGuess> classify(CameraFrame frame);
-}
 
-/// Seojun.
-abstract class CompositionLibrary {
-  Future<void> load();
-  List<CategoryInfo> get categories;
-  TargetComposition targetFor(String categoryId);
+  /// [level] 1~5 (1 = person largest, 5 = background largest).
+  /// Never throws: falls back to the level median.
+  Future<Recommendation> recommend(
+    CameraFrame frame,
+    int level,
+    ShotOrientation orientation,
+  );
 }
 
 /// Seojun, Should.

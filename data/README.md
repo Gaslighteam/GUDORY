@@ -1,17 +1,24 @@
-# data/ — curated good photos per category (Bomin)
+# data/ — training photos for 추천 모드 (Bomin)
 
-- `photos/` originals. **Not committed** (.gitignore). File names `<categoryId>_<n>.jpg` (e.g. `sea_001.jpg`)
-- `demo_refs/` 3–5 reference photos for the demo video. Not committed. Samples that ship in the app go to `app/assets/demo/` (lead)
-- `labels.csv` labels. **The only file committed here**
+Nothing in this folder is committed except this README (.gitignore).
 
-## labels.csv
-```
-file,primary,hashtags,person_count,orientation,notes
-sea_001.jpg,sea,backlight;fullbody;negative_space,1,portrait,
-```
-- `primary`: one category id from `app/assets/categories.json`
-- `hashtags`: hashtag ids separated by `;`
-- `orientation`: `portrait` / `landscape`
-- Only photos taken by team members. No internet photos. Prefer one person, portrait, full body.
+Target style: everyday / travel photos **as people post on Instagram** — one person, taken by a friend with a phone, any framing from chest-up to full body.
 
-Full guide: `prompts/bomin-data-guide.md`
+| Path | What |
+|---|---|
+| `photos/team/` | **Primary.** Photos taken by team members, and by friends who gave permission. Any file name |
+| `photos/unsplash/`, `unsplash/raw/` | Unsplash Lite test download (mostly studio portraits — supplementary at most) |
+| `openimages/raw/` | Open Images V7 label files for the supplementary test (Flickr, CC BY 2.0) |
+| `demo_refs/` | 3–5 reference photos for the demo video, **team members only** |
+
+## Rules for `photos/team/`
+- One person, head and shoulders visible. Chest-up, waist-up, knee-up and full body are all welcome; portrait and landscape both.
+- Original files from the phone are best. Instagram downloads are fine too (cropped, but used as they are).
+- Friends' photos only with the permission of the person who took them. No other internet photos. **Pexels is not allowed** (its terms forbid collection for machine learning).
+- No label file: orientation comes from the image size; `build_assets.py` checks one person and the framing with pose detection.
+- Aim for **100–200** photos so every level (5) × orientation has enough.
+
+## Supplementary dataset
+Decided after a CLIP style test ("phone snapshot" vs "studio portrait"). Whatever is used, its terms forbid publishing the data: only aggregated numbers go into the app, and README credits it.
+
+Old guide (categories, labels — outdated): `prompts/bomin-data-guide.md`

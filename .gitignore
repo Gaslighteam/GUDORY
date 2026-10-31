@@ -30,3 +30,7 @@ Thumbs.db
 *.iml
 .vscode/*
 !.vscode/extensions.json
+
+# Unsplash Lite 원본 (재배포 금지, 결과 JSON만 커밋)
+data/unsplash/*
+data/openimages/*

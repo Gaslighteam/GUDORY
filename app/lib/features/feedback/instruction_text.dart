@@ -25,6 +25,9 @@ abstract final class InstructionText {
       InstructionKey.fitWholeBody => '사람 전체가 화면에 들어오게 해 주세요',
       InstructionKey.noPerson => '사람이 화면에 보이게 해 주세요',
       InstructionKey.aligned => '좋아요! 그대로 멈춰 주세요',
+      InstructionKey.turnLandscape => '폰을 가로로 돌려 주세요',
+      InstructionKey.turnPortrait => '폰을 세로로 세워 주세요',
+      InstructionKey.addReference => '레퍼런스 사진을 추가해 주세요',
     };
   }
 

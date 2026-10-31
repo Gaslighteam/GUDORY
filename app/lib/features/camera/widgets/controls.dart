@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
-import '../../../core/models.dart';
 import '../shot_state.dart';
 
 /// Round translucent icon button (close, flash).
@@ -17,6 +16,7 @@ class RoundIconButton extends StatelessWidget {
     this.size = 48,
     this.color,
     this.tooltip,
+    this.quarterTurns = 0,
   });
 
   final IconData icon;
@@ -24,6 +24,9 @@ class RoundIconButton extends StatelessWidget {
   final double size;
   final Color? color;
   final String? tooltip;
+
+  /// Landscape: the icon turns in place; the button does not move.
+  final int quarterTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +39,15 @@ class RoundIconButton extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: size * 0.52,
-            semanticLabel: tooltip,
+          child: AnimatedRotation(
+            turns: quarterTurns / 4,
+            duration: const Duration(milliseconds: 250),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: size * 0.52,
+              semanticLabel: tooltip,
+            ),
           ),
         ),
       ),
@@ -220,93 +227,6 @@ class _ZoomControlState extends State<ZoomControl> {
   static const _small = TextStyle(color: Colors.white70, fontSize: 11);
 }
 
-/// Scene categories spread across the bar; selected = rounded fill,
-/// suggestions = yellow dot, manual pin = yellow outline.
-class CategoryChips extends StatelessWidget {
-  const CategoryChips({
-    super.key,
-    required this.categories,
-    required this.selectedId,
-    required this.suggestedIds,
-    required this.manualId,
-    required this.onTap,
-  });
-
-  final List<CategoryInfo> categories;
-  final String? selectedId;
-  final List<String> suggestedIds;
-  final String? manualId;
-  final ValueChanged<String> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 64,
-      child: Row(
-        children: [
-          for (var i = 0; i < categories.length; i++) ...[
-            if (i > 0)
-              Container(
-                width: 1,
-                height: 22,
-                color: Colors.white.withValues(alpha: 0.2),
-              ),
-            Expanded(child: _chip(categories[i])),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(CategoryInfo category) {
-    final selected = category.id == selectedId;
-    final pinned = category.id == manualId;
-    final suggested = !selected && suggestedIds.contains(category.id);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onTap(category.id),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.chipSelected : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.chip),
-            border: pinned
-                ? Border.all(color: AppColors.accent, width: 1.5)
-                : null,
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Text(
-                category.label,
-                style: TextStyle(
-                  fontSize: AppText.chip,
-                  color: AppColors.text,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-              if (suggested)
-                Positioned(
-                  right: -8,
-                  top: -2,
-                  child: Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Bottom-left slot: the active reference photo (tap to manage/add).
 class ReferenceThumb extends StatelessWidget {
   const ReferenceThumb({super.key, required this.state, required this.onTap});
@@ -401,9 +321,11 @@ class BottomBar extends StatelessWidget {
     required this.onFlip,
     required this.armed,
     required this.busy,
+    this.quarterTurns = 0,
   });
 
   final Widget reference;
+  final int quarterTurns;
   final VoidCallback? onShutter;
   final VoidCallback? onFlip;
 
@@ -452,6 +374,7 @@ class BottomBar extends StatelessWidget {
                       size: 56,
                       color: const Color(0xFF2C2C2E),
                       tooltip: '카메라 전환',
+                      quarterTurns: quarterTurns,
                     ),
                   ),
           ),
