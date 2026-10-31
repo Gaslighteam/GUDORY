@@ -41,7 +41,7 @@ abstract final class InstructionText {
     InstructionKey.subjectLeft => ArrowDirection.left,
     InstructionKey.stepRight ||
     InstructionKey.subjectRight => ArrowDirection.right,
-    InstructionKey.phoneUp => ArrowDirection.up,
+    InstructionKey.phoneUp || InstructionKey.raisePhone => ArrowDirection.up,
     InstructionKey.phoneDown => ArrowDirection.down,
     _ => ArrowDirection.none,
   };
@@ -70,6 +70,7 @@ abstract final class InstructionText {
       InstructionKey.turnLandscape => '폰을 가로로 돌려 주세요',
       InstructionKey.turnPortrait => '폰을 세로로 세워 주세요',
       InstructionKey.addReference => '레퍼런스 사진을 추가해 주세요',
+      InstructionKey.raisePhone => '폰을 조금 세워 주세요',
     };
   }
 
@@ -128,6 +129,7 @@ abstract final class InstructionText {
       InstructionKey.turnLandscape => 'Turn the phone sideways',
       InstructionKey.turnPortrait => 'Hold the phone upright',
       InstructionKey.addReference => 'Add a reference photo',
+      InstructionKey.raisePhone => 'Tilt the phone up a little',
     };
   }
 
@@ -189,6 +191,7 @@ abstract final class InstructionText {
       InstructionKey.turnLandscape => 'スマホを横にしてください',
       InstructionKey.turnPortrait => 'スマホを縦にしてください',
       InstructionKey.addReference => '参考写真を追加してください',
+      InstructionKey.raisePhone => 'スマホを少し立ててください',
     };
   }
 
