@@ -84,4 +84,23 @@ void main() {
       expect(right.top, closeTo(0.1, 1e-9));
     });
   });
+
+  test('toVisible keeps every non-landmark field', () {
+    final frame = PoseFrame(
+      landmarks: const [Landmark(x: 0.5, y: 0.5, visibility: 1)],
+      imageWidth: 1080,
+      imageHeight: 1440,
+      orientation: ShotOrientation.landscape,
+      rollDeg: 4,
+      pitchDeg: -7,
+      rollReliable: false,
+      at: DateTime(2026, 10, 31, 21),
+    );
+    final out = toVisible(frame, const Rect.fromLTWH(0.1, 0, 0.8, 1));
+    expect(out.rollReliable, isFalse);
+    expect(out.orientation, ShotOrientation.landscape);
+    expect(out.rollDeg, 4);
+    expect(out.pitchDeg, -7);
+    expect(out.at, frame.at);
+  });
 }
