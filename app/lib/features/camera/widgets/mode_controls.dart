@@ -33,28 +33,42 @@ class ModeToggle extends StatelessWidget {
     final other = mode == ShootMode.recommend
         ? ShootMode.custom
         : ShootMode.recommend;
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: AppColors.bubble,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Keep a stable order (추천 left, 맞춤 right) so the toggle
-            // doesn't jump when switching.
-            for (final m in ShootMode.values)
-              m == mode ? _selected(m) : _icon(other),
-          ],
-        ),
+    // The whole pill switches modes: the icon alone was too small a target.
+    return Semantics(
+      button: true,
+      label: '${_labels[other]} 모드로 바꾸기',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(other);
+        },
+        child: _pill(other),
       ),
     );
   }
+
+  Widget _pill(ShootMode other) => Container(
+    height: 44,
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: AppColors.bubble,
+      borderRadius: BorderRadius.circular(22),
+    ),
+    child: AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Keep a stable order (추천 left, 맞춤 right) so the toggle
+          // doesn't jump when switching.
+          for (final m in ShootMode.values)
+            m == mode ? _selected(m) : _icon(other),
+        ],
+      ),
+    ),
+  );
 
   Widget _selected(ShootMode m) => Container(
     height: 38,
@@ -74,23 +88,59 @@ class ModeToggle extends StatelessWidget {
     ),
   );
 
-  Widget _icon(ShootMode m) => Tooltip(
-    message: _labels[m]!,
-    child: InkResponse(
-      radius: 24,
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onChanged(m);
-      },
-      child: SizedBox(
-        width: 40,
-        height: 38,
-        child: AnimatedRotation(
-          turns: quarterTurns / 4,
-          duration: const Duration(milliseconds: 250),
-          child: Icon(_icons[m], color: Colors.white, size: 20),
+  Widget _icon(ShootMode m) => SizedBox(
+    width: 40,
+    height: 38,
+    child: AnimatedRotation(
+      turns: quarterTurns / 4,
+      duration: const Duration(milliseconds: 250),
+      child: Icon(_icons[m], color: Colors.white, size: 20),
+    ),
+  );
+}
+
+/// Top-centre popup after a mode change (fades out in the camera screen).
+class ModeNotice extends StatelessWidget {
+  const ModeNotice({super.key, required this.mode});
+
+  final ShootMode mode;
+
+  static const _details = {
+    ShootMode.recommend: '배경에 어울리는 구도를 추천해요',
+    ShootMode.custom: '레퍼런스 사진의 구도로 안내해요',
+  };
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(16, 10, 20, 10),
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(ModeToggle._icons[mode], color: AppColors.accent, size: 22),
+        const SizedBox(width: 10),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${ModeToggle._labels[mode]} 모드',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              _details[mode]!,
+              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+            ),
+          ],
         ),
-      ),
+      ],
     ),
   );
 }
