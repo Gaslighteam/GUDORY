@@ -126,6 +126,14 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
   ) async {
     final frame = _lastFrame;
     if (_recBusy || frame == null) return;
+    // Right at a portrait/landscape transition the pose stream can already
+    // say landscape while the UI's held orientation has no side yet. Guessing
+    // the side would feed CLIP an upside-down background, so wait for the next
+    // refresh and keep the current target.
+    if (orientation != ShotOrientation.portrait &&
+        ref.read(heldOrientationProvider).quarterTurns == 0) {
+      return;
+    }
     _recBusy = true;
     try {
       final rec = await ref

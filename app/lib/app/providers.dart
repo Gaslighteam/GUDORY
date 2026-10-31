@@ -50,17 +50,9 @@ final recommenderProvider = Provider<Recommender>((ref) {
       final left = crop.left.clamp(0.0, 1.0);
       final top = crop.top.clamp(0.0, 1.0);
       return SceneView(
-        // The pose stream and the UI apply the same rule (core/orientation.dart)
-        // to separate sensor reads; right at a transition they can disagree.
-        // SceneView rejects landscape with quarterTurns 0, so keep them aligned.
-        quarterTurns: switch ((
-          orientation,
-          ref.read(heldOrientationProvider).quarterTurns,
-        )) {
-          (ShotOrientation.portrait, _) => 0,
-          (_, 0) => 1,
-          (_, final turns) => turns,
-        },
+        quarterTurns: orientation == ShotOrientation.portrait
+            ? 0
+            : ref.read(heldOrientationProvider).quarterTurns,
         left: left,
         top: top,
         width: crop.width.clamp(0.01, 1.0 - left),
