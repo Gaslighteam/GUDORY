@@ -2,24 +2,23 @@
 
 Nothing in this folder is committed except this README (.gitignore).
 
+Target style: everyday / travel photos **as people post on Instagram** — one person, taken by a friend with a phone, any framing from chest-up to full body.
+
 | Path | What |
 |---|---|
-| `unsplash/raw/` | Unsplash Lite Dataset 1.4.0 (TSV files). Download: https://unsplash.com/data/lite/latest |
-| `unsplash/candidates.csv` | one-person candidates picked by `tools/unsplash_candidates.py` |
-| `photos/unsplash/<id>.jpg` | downloaded candidates (short side 640 px) |
-| `photos/team/` | optional photos taken by team members (same rules: one person, full body) |
+| `photos/team/` | **Primary.** Photos taken by team members, and by friends who gave permission. Any file name |
+| `photos/unsplash/`, `unsplash/raw/` | Unsplash Lite test download (mostly studio portraits — supplementary at most) |
+| `openimages/raw/` | Open Images V7 label files for the supplementary test (Flickr, CC BY 2.0) |
 | `demo_refs/` | 3–5 reference photos for the demo video, **team members only** |
 
-## Steps
-```bash
-python tools/unsplash_candidates.py --download 3000   # from the repo root
-```
-1. Look through `photos/unsplash/` and **delete** photos with a bad composition, two or more people, or no full body. No label file: orientation comes from the image size, and `build_assets.py` checks one person / full body with pose detection.
-2. Tell Seojun → `build_assets.py` → `app/assets/recommend.json`. Check the per-orientation, per-level counts in `tools/report.md`.
+## Rules for `photos/team/`
+- One person, head and shoulders visible. Chest-up, waist-up, knee-up and full body are all welcome; portrait and landscape both.
+- Original files from the phone are best. Instagram downloads are fine too (cropped, but used as they are).
+- Friends' photos only with the permission of the person who took them. No other internet photos. **Pexels is not allowed** (its terms forbid collection for machine learning).
+- No label file: orientation comes from the image size; `build_assets.py` checks one person and the framing with pose detection.
+- Aim for **100–200** photos so every level (5) × orientation has enough.
 
-## Rules
-- Unsplash Lite terms (`unsplash/raw/TERMS.md`): storing and training are allowed; **publishing any part of the data is not**. Only aggregated numbers (clusters, medians) go into the app.
-- **Pexels is not allowed** (its terms forbid automated collection for machine learning).
-- No other internet photos.
+## Supplementary dataset
+Decided after a CLIP style test ("phone snapshot" vs "studio portrait"). Whatever is used, its terms forbid publishing the data: only aggregated numbers go into the app, and README credits it.
 
 Old guide (categories, labels — outdated): `prompts/bomin-data-guide.md`
