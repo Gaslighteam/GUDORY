@@ -87,6 +87,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       _feedback.stop();
       return;
     }
+    // "No person" is a status, not a move: say it once when it starts, then
+    // keep it on screen only (no 4-second repeats, no beeps).
+    if (next.key == InstructionKey.noPerson) {
+      _autoShutter?.cancel();
+      if (previous?.key != InstructionKey.noPerson) {
+        _feedback.stop();
+        _feedback.announce(next, _lang);
+      }
+      return;
+    }
     if (next.aligned) {
       if (previous?.aligned != true) {
         _feedback.announce(next, _lang);
