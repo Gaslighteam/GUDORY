@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/models.dart';
+import '../coach/photo_rules.dart';
 import 'framing.dart';
 import 'shot_orientation.dart';
 import 'shot_state.dart';
@@ -25,6 +26,12 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
   ShotOrientation? _recOrientation;
   DateTime _recAt = DateTime(0);
   bool _recBusy = false;
+
+  // Recommend levels 1~3: photographer rules on top of the recommendation,
+  // held for the refresh period so the instruction does not flicker.
+  TargetComposition? _ruledFrom;
+  TargetComposition? _ruledTarget;
+  DateTime _ruledAt = DateTime(0);
 
   static const _refreshEvery = Duration(seconds: 3);
 
@@ -76,10 +83,28 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
           ref.read(visibleCropProvider),
           ref.read(heldOrientationProvider).quarterTurns,
         );
-        state = engine.update(toVisible(frame, crop), target);
+        final visible = toVisible(frame, crop);
+        final mode = ref.read(modeProvider);
+        final useRules = mode.mode == ShootMode.recommend && mode.level <= 3;
+        state = engine.update(
+          visible,
+          useRules ? _ruled(target, visible) : target,
+        );
       });
     }
     return _needsReference() ? _addReference : null;
+  }
+
+  TargetComposition _ruled(TargetComposition t, PoseFrame live) {
+    final cached = _ruledTarget;
+    if (cached != null &&
+        identical(t, _ruledFrom) &&
+        DateTime.now().difference(_ruledAt) < _refreshEvery) {
+      return cached;
+    }
+    _ruledFrom = t;
+    _ruledAt = DateTime.now();
+    return _ruledTarget = applyPhotoRules(t, live);
   }
 
   bool _needsReference() =>
