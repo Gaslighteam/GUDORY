@@ -1,0 +1,25 @@
+{
+  "_note": "Draft. Seojun replaces this with the list Bomin finalizes by 18:00. Ids must not change afterwards.",
+  "categories": [
+    { "id": "mountain", "label": "산", "prompts": ["a photo of a person standing on a mountain trail", "a hiker posing with mountain peaks in the background", "a portrait taken on a mountain with a wide valley view"], "hashtagIds": ["fullbody", "negative_space"] },
+    { "id": "sea", "label": "바다", "prompts": ["a photo of a person standing on a beach", "a woman looking at the sea from the shore", "a portrait at a sandy beach with waves and horizon"], "hashtagIds": ["horizon", "fullbody"] },
+    { "id": "city", "label": "도시", "prompts": ["a photo of a person on a city street with buildings", "a portrait in a downtown street with shops and signs", "a person walking across a crosswalk in a city"], "hashtagIds": ["halfbody", "center"] },
+    { "id": "sunset", "label": "노을", "prompts": ["a photo of a person silhouetted against a sunset sky", "a backlit portrait at golden hour with an orange sky", "a person watching the sunset over the horizon"], "hashtagIds": ["backlight", "golden"] },
+    { "id": "forest", "label": "숲", "prompts": ["a photo of a person on a path in a forest", "a portrait among tall trees in the woods", "a person standing under green trees in a park"], "hashtagIds": ["fullbody", "center"] },
+    { "id": "indoor", "label": "실내", "prompts": ["a photo of a person sitting in a cafe by the window", "an indoor portrait in a room with warm light", "a person standing in a hallway or lobby indoors"], "hashtagIds": ["halfbody", "cozy"] }
+  ],
+  "hashtags": [
+    { "id": "backlight", "label": "#역광", "prompts": ["a backlit photo of a person with the light source behind"] },
+    { "id": "golden", "label": "#노을빛", "prompts": ["a photo of a person in warm golden hour light"] },
+    { "id": "cloudy", "label": "#흐린날", "prompts": ["a photo of a person under an overcast gray sky"] },
+    { "id": "night", "label": "#야경", "prompts": ["a photo of a person at night with city lights"] },
+    { "id": "fullbody", "label": "#전신", "prompts": ["a full body photo of a person from head to feet"] },
+    { "id": "halfbody", "label": "#상반신", "prompts": ["a waist-up portrait of a person"] },
+    { "id": "back", "label": "#뒷모습", "prompts": ["a photo of a person seen from behind looking at the view"] },
+    { "id": "negative_space", "label": "#여백", "prompts": ["a photo of a small person with a lot of empty sky or background"] },
+    { "id": "center", "label": "#중앙", "prompts": ["a photo of a person centered in the frame"] },
+    { "id": "low_angle", "label": "#로우앵글", "prompts": ["a photo of a person taken from a low angle looking up"] },
+    { "id": "horizon", "label": "#수평선", "prompts": ["a photo with a clear flat horizon line behind a person"] },
+    { "id": "cozy", "label": "#아늑한", "prompts": ["a cozy warm indoor photo of a person"] }
+  ]
+}

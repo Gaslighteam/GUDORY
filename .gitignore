@@ -1,0 +1,32 @@
+# 비밀·키
+.env
+.env.*
+*.keystore
+*.jks
+key.properties
+.vercel/
+
+# 사진 원본·모델 파일 (레포에는 벡터 JSON만)
+data/photos/*
+!data/photos/.gitkeep
+data/demo_refs/*
+!data/demo_refs/.gitkeep
+app/assets/clip/*.onnx
+app/assets/clip/*.onnx_data
+
+# Python
+tools/.venv/
+tools/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Node (api/)
+api/node_modules/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
