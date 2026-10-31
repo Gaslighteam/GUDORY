@@ -16,7 +16,16 @@ final cameraServiceProvider = Provider<CameraService>((ref) {
 });
 
 class CameraService extends ChangeNotifier implements FrameBus {
-  final _frames = StreamController<CameraFrame>.broadcast();
+  CameraService() {
+    // The analysis stream copies ~1.4 MB per frame into Dart, so it only
+    // runs while some module (pose, scene) is listening.
+    _frames = StreamController<CameraFrame>.broadcast(
+      onListen: _syncStream,
+      onCancel: _syncStream,
+    );
+  }
+
+  late final StreamController<CameraFrame> _frames;
   List<CameraDescription> _cameras = const [];
   int _index = 0;
   CameraController? _controller;
@@ -82,7 +91,7 @@ class CameraService extends ChangeNotifier implements FrameBus {
       zoom = 1.0.clamp(minZoom, maxZoom);
       await controller.setFlashMode(flashMode);
       await _lockPortrait(controller);
-      await _startStream(controller);
+      await _syncStream();
       error = null;
     } catch (e) {
       error = e;
@@ -153,7 +162,7 @@ class CameraService extends ChangeNotifier implements FrameBus {
     try {
       return await controller.takePicture();
     } finally {
-      if (_controller == controller) await _startStream(controller);
+      if (_controller == controller) await _syncStream();
     }
   }
 
@@ -162,6 +171,23 @@ class CameraService extends ChangeNotifier implements FrameBus {
     await stop();
     await _frames.close();
     super.dispose();
+  }
+
+  /// Starts the image stream when someone listens, stops it when nobody does.
+  Future<void> _syncStream() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    final want = _frames.hasListener && !_disposed;
+    final running = controller.value.isStreamingImages;
+    try {
+      if (want && !running) {
+        await _startStream(controller);
+      } else if (!want && running) {
+        await controller.stopImageStream();
+      }
+    } on CameraException {
+      // Camera was closed mid-switch; the next start() re-syncs.
+    }
   }
 
   Future<void> _startStream(CameraController controller) async {
