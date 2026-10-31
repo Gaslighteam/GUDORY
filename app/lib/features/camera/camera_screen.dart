@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
@@ -33,12 +34,26 @@ class CameraScreen extends ConsumerStatefulWidget {
   ConsumerState<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends ConsumerState<CameraScreen>
-    with WidgetsBindingObserver {
-  bool _capturing = false;
+/// The panels that expand out of the round buttons beside the zoom pill.
+enum _Panel { none, composition, menu }
 
-  /// Recommend mode: the 5-step composition panel is open.
-  bool _panelOpen = false;
+class _CameraScreenState extends ConsumerState<CameraScreen>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  bool _capturing = false;
+  bool _flipping = false;
+
+  /// Open (or closing) panel; it stays set until the close animation ends.
+  _Panel _panel = _Panel.none;
+  late final AnimationController _panelAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    reverseDuration: const Duration(milliseconds: 180),
+  );
+  late final Animation<double> _panelCurve = CurvedAnimation(
+    parent: _panelAnim,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
 
   /// Last saved photo, shown bottom-left outside custom mode.
   String? _lastShotPath;
@@ -46,6 +61,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   Timer? _toastTimer;
   double _pinchBase = 1;
+
+  /// One-finger drag on the preview since the gesture began; a mostly
+  /// vertical swipe flips the camera (Samsung-style).
+  Offset _swipe = Offset.zero;
+  bool _pinched = false;
 
   /// X / flash diameter (~10% of the screen width in the mock).
   static const _topButton = 44.0;
@@ -67,6 +87,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   @override
   void dispose() {
     _toastTimer?.cancel();
+    _panelAnim.dispose();
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     super.dispose();
@@ -166,8 +187,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   /// Front camera = plain camera: coaching and recommendations stop.
   Future<void> _flip() async {
+    if (_flipping || _capturing || !_camera.canFlip) return;
+    _flipping = true;
+    _closePanel();
     _feedback.stop();
-    await _camera.flip();
+    try {
+      await _camera.flip();
+    } finally {
+      _flipping = false;
+    }
+    if (!mounted) return;
     final front = _camera.isFront;
     ref.read(frontCameraProvider.notifier).set(front);
     ref.read(coachingProvider.notifier).reset();
@@ -182,16 +211,52 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   void _openTutorial() => context.push('/tutorial');
 
-  void _openMenu() => showCameraMenu(
-    context,
-    languageLabel: instructionLanguages[ref.read(languageProvider)] ?? '한국어',
-    onTutorial: _openTutorial,
-    onLanguage: _pickLanguage,
-  );
+  void _openPanel(_Panel panel) {
+    setState(() => _panel = panel);
+    _panelAnim.forward();
+  }
+
+  void _closePanel() {
+    if (_panel == _Panel.none || _panelAnim.status == AnimationStatus.reverse) {
+      return;
+    }
+    _panelAnim.reverse().then((_) {
+      if (mounted && _panelAnim.isDismissed) {
+        setState(() => _panel = _Panel.none);
+      }
+    });
+  }
+
+  void _onPreviewScaleStart(ScaleStartDetails d) {
+    _pinchBase = _camera.zoom;
+    _swipe = Offset.zero;
+    _pinched = d.pointerCount > 1;
+  }
+
+  void _onPreviewScaleUpdate(ScaleUpdateDetails d) {
+    if (d.pointerCount < 2) {
+      _swipe += d.focalPointDelta;
+      return;
+    }
+    _pinched = true;
+    _camera.setZoom(_pinchBase * d.scale);
+  }
+
+  /// Swipe up/down (along the held "vertical", so sideways shots work too)
+  /// flips between the front and back cameras.
+  void _onPreviewScaleEnd(ScaleEndDetails d) {
+    if (_pinched) return;
+    final sideways = ref.read(heldOrientationProvider).quarterTurns.isOdd;
+    final along = sideways ? _swipe.dx : _swipe.dy;
+    final across = sideways ? _swipe.dy : _swipe.dx;
+    if (along.abs() < 60 || along.abs() < across.abs() * 2) return;
+    HapticFeedback.lightImpact();
+    _flip();
+  }
 
   void _setMode(ShootMode mode) {
     ref.read(modeProvider.notifier).setMode(mode);
-    setState(() => _panelOpen = false);
+    _closePanel();
     _toast(mode == ShootMode.recommend ? '추천 모드' : '맞춤 모드');
   }
 
@@ -226,6 +291,42 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         ref.read(visibleCropProvider.notifier).update(area, frameAspect);
       }
     });
+  }
+
+  Widget _midRow(
+    CameraService camera,
+    ModeState mode,
+    bool showComposition,
+    int turns,
+  ) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 44,
+          child: showComposition
+              ? CompositionButton(
+                  level: mode.level,
+                  onPressed: () => _openPanel(_Panel.composition),
+                  quarterTurns: turns,
+                )
+              : null,
+        ),
+        Expanded(
+          child: Center(
+            child: camera.isReady
+                ? ZoomControl(
+                    min: camera.minZoom,
+                    max: camera.maxZoom,
+                    zoom: camera.zoom,
+                    presets: camera.zoomPresets,
+                    onChanged: camera.setZoom,
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+        MenuDotsButton(onPressed: () => _openPanel(_Panel.menu)),
+      ],
+    );
   }
 
   @override
@@ -299,11 +400,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     fit: StackFit.expand,
                     children: [
                       GestureDetector(
-                        onScaleStart: (_) => _pinchBase = camera.zoom,
-                        onScaleUpdate: (d) {
-                          if (d.pointerCount < 2) return;
-                          camera.setZoom(_pinchBase * d.scale);
-                        },
+                        onScaleStart: _onPreviewScaleStart,
+                        onScaleUpdate: _onPreviewScaleUpdate,
+                        onScaleEnd: _onPreviewScaleEnd,
                         child: _Preview(camera: camera, onRetry: camera.start),
                       ),
                       if (camera.isReady) ...[
@@ -337,59 +436,69 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                           ),
                         ),
                       // Composition (recommend only) · zoom · ⠿ menu. The
-                      // composition button expands into the 5-step panel and
-                      // the zoom and menu step aside until it closes.
+                      // round buttons expand in place into their panels; the
+                      // rest of the row fades out, and a tap anywhere else
+                      // closes the panel.
                       Positioned(
                         left: 16,
                         right: 16,
                         bottom: 14,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          child: _panelOpen && showComposition
-                              ? CompositionPanel(
-                                  key: const ValueKey('panel'),
-                                  level: mode.level,
-                                  onChanged: ref
-                                      .read(modeProvider.notifier)
-                                      .setLevel,
-                                  onClose: () {
-                                    if (mounted) {
-                                      setState(() => _panelOpen = false);
-                                    }
-                                  },
-                                  quarterTurns: turns,
-                                )
-                              : Row(
-                                  key: const ValueKey('row'),
-                                  children: [
-                                    SizedBox(
-                                      width: 44,
-                                      child: showComposition
-                                          ? CompositionButton(
-                                              level: mode.level,
-                                              onPressed: () => setState(
-                                                () => _panelOpen = true,
-                                              ),
-                                              quarterTurns: turns,
-                                            )
-                                          : null,
-                                    ),
-                                    Expanded(
-                                      child: Center(
-                                        child: camera.isReady
-                                            ? ZoomControl(
-                                                min: camera.minZoom,
-                                                max: camera.maxZoom,
-                                                zoom: camera.zoom,
-                                                presets: camera.zoomPresets,
-                                                onChanged: camera.setZoom,
-                                              )
-                                            : const SizedBox.shrink(),
-                                      ),
-                                    ),
-                                    MenuDotsButton(onPressed: _openMenu),
-                                  ],
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            FadeTransition(
+                              opacity: ReverseAnimation(_panelCurve),
+                              child: IgnorePointer(
+                                ignoring: _panel != _Panel.none,
+                                child: _midRow(
+                                  camera,
+                                  mode,
+                                  showComposition,
+                                  turns,
                                 ),
+                              ),
+                            ),
+                            if (_panel == _Panel.composition && showComposition)
+                              TapRegion(
+                                onTapOutside: (_) => _closePanel(),
+                                child: ExpandFromButton(
+                                  animation: _panelCurve,
+                                  alignment: Alignment.centerLeft,
+                                  child: CompositionPanel(
+                                    level: mode.level,
+                                    onChanged: ref
+                                        .read(modeProvider.notifier)
+                                        .setLevel,
+                                    onClose: () {
+                                      if (mounted) _closePanel();
+                                    },
+                                    quarterTurns: turns,
+                                  ),
+                                ),
+                              ),
+                            if (_panel == _Panel.menu)
+                              TapRegion(
+                                onTapOutside: (_) => _closePanel(),
+                                child: ExpandFromButton(
+                                  animation: _panelCurve,
+                                  alignment: Alignment.centerRight,
+                                  child: CameraMenuPanel(
+                                    languageLabel:
+                                        instructionLanguages[lang] ?? '한국어',
+                                    onTutorial: () {
+                                      _closePanel();
+                                      _openTutorial();
+                                    },
+                                    onLanguage: () {
+                                      _closePanel();
+                                      _pickLanguage();
+                                    },
+                                    onClose: _closePanel,
+                                    quarterTurns: turns,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ],
