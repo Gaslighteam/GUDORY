@@ -1,132 +1,275 @@
 # GUDORY (구도리)
 
-> **사진 감각, 빌려드릴게요.** GUDORY lends your **sense (감각)** of a good shot to whoever is holding your phone. It gives them one plain sentence at a time, plus beeps and a vibration they can follow by ear and by hand.
+> **사진 감각, 빌려드릴게요.** GUDORY lends your sense of a good shot to whoever is holding your phone. It guides them with simple instructions, proximity beeps, and vibration.
 
-InThon 2026 · Theme "감각 (sense)" · Team Gaslighteam
+InThon 2026 · Theme: **감각 (Sense)** · Team Gaslighteam
 
-- 📱 **APK download:** (GitHub Releases link, filled before submission)
-- ▶️ **Demo video:** (YouTube link, filled before submission)
+- 📱 **APK Download:** Coming soon
+- ▶️ **Demo Video:** Coming soon
 
 ## Problem
-When you hand your phone to a friend or a stranger, the problem isn't their skill. They just don't share your sense of the shot. You get 30 seconds of their time, and a grid or a translucent overlay doesn't tell them what to fix first, or by how much.
+
+When you hand your phone to a friend or stranger, they may not know how you want your photo to look.
+
+Even with camera grids and composition guides, it can be difficult to know what to adjust, which direction to move, or how far to move.
 
 ## Solution
-GUDORY measures how far the live frame is from a target composition on four axes: level, distance, horizontal position and height. It then shows **only the biggest correction**, in words the body can act on: "두 걸음 뒤로 가 주세요" (take two steps back), "폰을 주먹 하나만큼 아래로 내려 주세요" (lower the phone by one fist). Beeps speed up as the frame gets closer. When it lines up, a ding, a vibration and a yellow ring around the shutter tell the photographer to press it. The photographer always takes the shot by hand.
 
-The target comes from one of two modes:
-- **추천 (recommend):** the app reads the background and borrows the composition of similar, well-shot photos of one person.
-- **맞춤 (custom):** the target is a reference photo you choose.
+**GUDORY turns photographic composition into simple, actionable instructions.**
+
+It analyzes the camera frame, recommends a target composition, and compares the live shot against that target.
+
+The photographer receives one instruction at a time, such as:
+
+- "두 걸음 뒤로 가 주세요" — Take two steps back.
+- "폰을 조금 아래로 내려 주세요" — Lower the phone slightly.
+
+As the composition improves, proximity beeps become faster. When the shot is aligned, GUDORY provides a sound, vibration, and visual confirmation.
+
+The photographer then presses the shutter manually.
 
 ## Features
-1. **추천 모드 (recommend)**
-   - The on-device CLIP model looks at the background only (the person is masked out) and matches it against background clusters built from real one-person photos.
-   - A **5-step bar** chooses from 인물 중심 (1, the person large) to 배경 중심 (5, more background). Each level has its own framing (chest-up, waist-up, knee-up or full body), position and size.
-2. **맞춤 모드 (custom)**
-   - Load one or more reference photos, portrait or landscape. The active one (yellow border) becomes the target.
-   - References stay across shots until you clear them with X.
-3. **Real-time coaching without voice**
-   - One instruction bubble with a direction arrow.
-   - **Proximity beeps** that get faster as the error shrinks.
-   - When aligned: a **ding, a vibration and a yellow shutter ring**, and the bubble says "좋아요! 지금 셔터를 눌러 주세요" (press the shutter now). There is no auto shutter: the photographer presses it.
-   - Instructions use hysteresis and a minimum hold time, so they don't flicker.
-   - Coaching runs on the **back camera**, because someone else is taking the photo. The flip button switches to the front camera as a plain camera, with no coaching or recommendation (flash, zoom, `?` and language stay).
-4. **Instruction language and how-to (top right: `?` · language · flash)**
-   - The language button (`KO` / `EN` / `JA`) switches the on-screen instructions to 한국어, English or 日本語. Use it when you ask a foreigner to take the photo.
-   - `?` opens a short how-to. It also opens automatically on the first launch.
-5. **Portrait and landscape:** the accelerometer decides how the phone is held, and the icons and bubble rotate in place. If the target's orientation differs, the first instruction is "폰을 가로로 돌려 주세요" (turn the phone sideways).
-6. **WYSIWYG saving:** the photo is taken at full sensor resolution and cropped to exactly what the preview showed. Landscape shots are rotated on save. Photos go to the GUDORY album, with no result screen in between.
+
+### 1. Recommendation Mode (추천)
+
+GUDORY analyzes the background using CLIP and recommends a composition through lightweight machine learning.
+
+- Predicts the person's framing, horizontal placement, eye height, and size.
+- Offers five levels, from person-centered to background-centered compositions.
+- Applies photographer rules to refine person-centered recommendations, including headroom, joint boundaries, and looking direction.
+- Falls back to the original background-cluster recommender when V2 is unavailable.
+
+### 2. Custom Mode (맞춤)
+
+Use a reference photograph as the target composition.
+
+- Import portrait or landscape reference images.
+- Save multiple references and switch between them.
+- Keep references across shots until manually removed.
+
+### 3. Real-Time Photography Coaching
+
+GUDORY compares the live camera view with the target composition and provides one instruction at a time.
+
+- Camera orientation, distance, horizontal position, and height guidance.
+- Direction arrows and concise on-screen instructions.
+- Proximity beeps, vibration, and alignment feedback.
+- Instruction stabilization to prevent rapid changes.
+- Manual shutter capture when the desired composition is reached.
+
+Coaching runs on the rear camera. The front camera remains available for ordinary photography.
+
+### 4. Multilingual Guidance
+
+Photography instructions are available in:
+
+- Korean (한국어)
+- English
+- Japanese (日本語)
+
+A built-in interactive tutorial explains the camera controls.
+
+### 5. Camera Experience
+
+- Portrait and landscape photography
+- Continuous zoom and camera controls
+- Grid lines and composition aids
+- Full-resolution photo capture
+- Saved photographs matching the visible camera preview
+- Automatic saving to the GUDORY album
+
+## How the AI Works
+
+GUDORY combines pretrained computer vision models with lightweight composition prediction.
+
+1. **Person Detection and Segmentation:** Google ML Kit detects body landmarks and separates the person from the background.
+2. **CLIP:** Converts the background into a 512-dimensional feature vector.
+3. **PCA:** Reduces those 512 features to 32 dimensions.
+4. **Regression and Classification:** Predict framing, horizontal offset, and eye height using the compressed background features and shooting preferences. Person size is selected from a learned statistical table.
+5. **Composition Coaching:** The target composition is refined when applicable and passed to the coaching engine, which generates real-time movement instructions.
+
+Recommender V2 was trained on **694 usable human photographs** from the Composition Assessment DataBase (CADB), with higher-rated compositions receiving greater weight.
+
+Instead of training a large neural network from scratch, GUDORY uses pretrained CLIP features and small linear models.
+
+All live image analysis and composition inference run **on-device**. Camera frames are not uploaded for recommendation processing.
+
+### Recommendation Model Evaluation
+
+In an evaluation using 500 Open Images photographs not used to train V2:
+
+| Metric | V1 | V2 |
+|---|---:|---:|
+| Horizontal offset MAE ↓ | 0.104 | **0.080** |
+| Eye-height MAE ↓ | 0.100 | **0.097** |
+| Framing accuracy ↑ | **63.2%** | 62.4% |
+
+V2 improved horizontal placement prediction and reduced the previous tendency to recommend centered compositions.
+
+These results measure agreement with observed photographic compositions, not a proven improvement in aesthetic quality. The evaluation photographs were also part of V1's training data.
+
+For details, see:
+
+- [Recommender V2 Evaluation](tools/report_v2.md)
+- [CADB Dataset and Research](docs/cadb.md)
 
 ## Architecture
+
 ```mermaid
-flowchart LR
-  subgraph Camera["features/camera (Taeho)"]
-    FB["FrameBus<br/>NV21 analysis stream"]
-    CO["coaching.dart<br/>map to visible crop"]
-    UI["Camera screen<br/>bubble (KO/EN/JA), 5-step bar, references"]
-    CAP["Capture<br/>full-res, WYSIWYG crop, album"]
-  end
-  subgraph Coach["features/coach (Eungyu)"]
-    PS["PoseSource<br/>ML Kit Pose + accelerometer"]
-    CE["CoachEngine<br/>4-axis error, one instruction"]
-    RA["ReferenceAnalyzer<br/>ML Kit Pose on the still, EXIF fixed"]
-  end
-  subgraph Scene["features/scene (Seojun)"]
-    RC["SceneRecommender"]
-    SEG["Selfie Segmentation<br/>mask the person"]
-    CLIP["CLIP ViT-B/32 q8<br/>ONNX Runtime"]
-    RJ[("recommend.json<br/>clusters + medians")]
-  end
-  FS["SensoryFeedback (Taeho)<br/>beeps, ding, vibration"]
+flowchart TD
+    A[Camera Frame] --> B[ML Kit Pose Detection]
+    A --> C[Person Segmentation]
+    C --> D[CLIP Background Encoder]
+    D --> E[PCA + Recommender V2]
+    D --> F[V1 Background-Cluster Fallback]
 
-  FB --> PS --> CO --> CE
-  FB --> RC --> SEG --> CLIP --> RJ
-  RJ -- "추천: TargetComposition" --> CE
-  REF["Reference photo"] --> RA -- "맞춤: TargetComposition" --> CE
-  CE -- CoachInstruction --> UI
-  CE --> FS
-  CE -- "aligned: yellow shutter ring" --> UI
-  UI -- "photographer presses the shutter" --> CAP
+    E --> G[Target Composition]
+    F --> G
+    B --> H[Photographer Rules]
+    G --> H
+    H --> I[CoachEngine]
+    B --> I
+
+    J[Reference Photo] --> K[Reference Analyzer]
+    K --> I
+
+    I --> L[Movement Instructions]
+    L --> M[On-Screen Guidance + Sensory Feedback]
+    M --> N[Manual Photo Capture]
 ```
 
-Module contracts (`FrameBus`, `PoseSource`, `CoachEngine`, `ReferenceAnalyzer`, `Recommender`, `FeedbackService`) live in `app/lib/core/contracts.dart`. They are documented in [AGENTS.md](AGENTS.md) §4.
+Photographer rules apply to person-centered recommendation levels. Custom mode uses its reference target without those rules.
 
+Core module interfaces are defined in `app/lib/core/contracts.dart`.
+
+### Project Structure
+
+```text
+app/       Flutter application
+  lib/
+    core/                 Shared models and contracts
+    features/
+      camera/             Camera UI and capture
+      coach/              Pose analysis and coaching
+      scene/              Composition recommendation
+      feedback/           Audio and haptic feedback
+      settings/           Application preferences
+      tutorial/           Interactive camera tutorial
+
+tools/     Python data processing and model training
+data/      Local training photographs (not committed)
+docs/      Technical documentation and project resources
 ```
-app/     Flutter app (Android): features/camera · feedback (Taeho) · coach (Eungyu) · scene (Seojun)
-tools/   Python pipeline: one-person photos → app/assets/recommend.json
-data/    Training photos (never committed; see data/README.md)
-docs/    Plan and concept documents
-```
 
-## AI used
-Everything runs **on the phone**. No photo, frame or embedding leaves the device.
+## Tech Stack
 
-| What | Model | Where |
-|---|---|---|
-| Body landmarks (live and reference) | Google ML Kit Pose Detection | on device |
-| Person mask, so CLIP compares backgrounds only | Google ML Kit Selfie Segmentation | on device |
-| Background embedding | CLIP ViT-B/32 vision encoder, int8 (q8) ONNX, ~89 MB, ONNX Runtime | on device |
-| Target compositions | `recommend.json` (24 KB), built offline by `tools/build_assets.py` | bundled asset |
+| Component | Technology |
+|---|---|
+| Mobile application | Flutter / Dart |
+| Camera | Flutter Camera |
+| Pose detection | Google ML Kit Pose Detection |
+| Person segmentation | Google ML Kit Selfie Segmentation |
+| Background understanding | CLIP ViT-B/32 |
+| Model inference | ONNX Runtime |
+| Feature reduction | PCA |
+| Composition prediction | Logistic Regression, Ridge Regression |
+| Training pipeline | Python, NumPy, scikit-learn, MediaPipe |
+| Sensory feedback | Audio and vibration |
+| Target platform | Android |
 
-`recommend.json` was built from **5,603 photos**, of which 3,233 passed the one-person, pose and segmentation checks. It holds **103 background clusters** (43 portrait, 60 landscape), each with median compositions per level and framing, plus fallbacks per orientation and level. It contains only aggregated statistics: no photo IDs, images or per-photo numbers. If CLIP is unavailable, the app falls back to the level medians and keeps coaching.
+The application uses Flutter **3.44.8** and Dart **3.12.2**.
 
-## Data and credits
-- **Training photos:** photos taken by team members, and by friends who gave permission (weighted 3×). These are supplemented by **Open Images V7** one-person photos (Flickr, CC BY 2.0), weighted 1×. Originals stay on our PCs, per [data/README.md](data/README.md) and the dataset terms. Only the aggregated `recommend.json` ships.
-- **Recommender v2 training data:** the `human` photos of **CADB** (Composition Assessment DataBase; Zhang, Niu & Zhang, BMVC 2021; [code and annotations](https://github.com/bcmi/Image-Composition-Assessment-Dataset-CADB), MIT). Its images come from AADB (Flickr). They were used only on our PCs for training. `recommend_v2.json` holds only the learned weights and aggregates ([docs/cadb.md](docs/cadb.md)).
-- **CLIP ViT-B/32:** OpenAI, MIT License. ONNX export: [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32).
-- **Google ML Kit:** Pose Detection and Selfie Segmentation. The data pipeline also uses MediaPipe Pose Landmarker, EfficientDet-Lite0 and Selfie Segmenter.
-- **Beeps and sounds:** generated by the team.
-- **Demo and reference photos:** taken by team members.
+### Model Assets
 
-### Dataset and model licenses
-| Item | Used for | License | What ships in the app |
-|---|---|---|---|
-| Open Images V7 (Google) | Recommender v1 training photos | Annotations [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); images listed as [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) (Flickr authors, kept in a local attribution file) | Aggregates only (`recommend.json`) |
-| CADB (Zhang, Niu & Zhang, BMVC 2021) | Recommender v2 training photos and score weights | Code and annotations [MIT](https://github.com/bcmi/Image-Composition-Assessment-Dataset-CADB/blob/main/LICENSE); images from AADB (Kong et al., ECCV 2016), Flickr, copyright with the photographers | Learned weights and aggregates only (`recommend_v2.json`) |
-| Team and friends' photos | Recommender v1 training photos | Permission for this project only | Aggregates only |
-| CLIP ViT-B/32 (OpenAI) | Background embedding | [MIT](https://github.com/openai/CLIP/blob/main/LICENSE) | ONNX model (Xenova export) |
-| MediaPipe Pose Landmarker, EfficientDet-Lite0, Selfie Segmenter | Offline data pipeline only | Apache 2.0 | Nothing |
-| Google ML Kit Pose Detection, Selfie Segmentation | On-device pose and person mask | [ML Kit Terms](https://developers.google.com/ml-kit/terms) | SDK |
+| Asset | Purpose | Size |
+|---|---|---:|
+| `recommend.json` | Original CLIP background-cluster recommendations and fallbacks | ~108 KB |
+| `recommend_v2.json` | PCA, trained linear models, and composition statistics | ~162 KB |
+| `vision_q8.onnx` | Quantized CLIP vision encoder | ~89 MB |
 
-No photos, photo IDs, per-photo numbers or embeddings are in the repo or the app. In the app, 설정 → 오픈소스 · 데이터 라이선스 lists the datasets next to the package licenses.
+The CLIP model file is excluded from Git and must be downloaded separately.
 
-## Run locally
-Requirements: Flutter 3.44.8, a real Android device (minSdk 24) and Python 3.
+## Getting Started
+
+### Requirements
+
+- Flutter 3.44.8
+- Dart 3.12.2
+- Android device (minSdk 24)
+- Python 3
+
+### Installation
+
+Clone the repository:
 
 ```bash
-# 1) Fetch the CLIP model (not in the repo) into app/assets/clip/vision_q8.onnx
+git clone https://github.com/Gaslighteam/GUDORY.git
+cd GUDORY
+```
+
+Download the required CLIP model:
+
+```bash
 python tools/fetch_models.py
-# 2) Run the app
+```
+
+Install Flutter dependencies and run the application:
+
+```bash
 cd app
 flutter pub get
 flutter run
 ```
 
-Without the model file the app still runs, but 추천 mode falls back to the level medians. To rebuild `recommend.json` from your own photos, see [tools/README.md](tools/README.md).
+To build a debug APK:
 
-## Team
-| Name | Role |
+```bash
+flutter build apk --debug
+```
+
+The APK will be generated at:
+
+`app/build/app/outputs/flutter-apk/app-debug.apk`
+
+If the CLIP model is unavailable, the application uses its predefined composition fallbacks.
+
+## Training Data and Credits
+
+GUDORY uses multiple datasets and pretrained models.
+
+- **CADB (Composition Assessment DataBase):** Expert-rated photographs used to train Recommender V2.
+- **Open Images V7:** Supplementary one-person photographs used for the original recommendation system.
+- **Team and Friends' Photographs:** Photographs collected with permission for the original recommendation dataset.
+- **CLIP ViT-B/32:** Pretrained image encoder by OpenAI, with an ONNX model from [Xenova](https://huggingface.co/Xenova/clip-vit-base-patch32).
+- **Google ML Kit:** On-device pose detection and person segmentation.
+- **MediaPipe:** Used for offline pose analysis.
+
+Original training photographs, personal image data, and per-photo embeddings are not included in the repository or application assets.
+
+### Dataset and Model Licenses
+
+| Resource | License / Attribution |
 |---|---|
-| Kim Taeho | Lead · camera screen, capture, feedback, instruction languages · integration and release |
-| Seojun | 추천 mode: CLIP recommender on device · data pipeline (`tools/`) |
-| Han Eungyu | Coaching engine · pose source · reference analyzer · presenter |
-| Kim Bomin | Training data · data rules and docs · slides · QA |
+| CADB code and annotations | [MIT](https://github.com/bcmi/Image-Composition-Assessment-Dataset-CADB/blob/main/LICENSE); source images from AADB/Flickr retain their respective rights |
+| Open Images V7 | [CC BY 4.0 annotations](https://creativecommons.org/licenses/by/4.0/); source images listed under CC BY 2.0 |
+| Team and friends' photographs | Permission for this project |
+| CLIP ViT-B/32 | [MIT](https://github.com/openai/CLIP/blob/main/LICENSE) |
+| MediaPipe and associated offline models | Apache 2.0 |
+| Google ML Kit | [ML Kit Terms](https://developers.google.com/ml-kit/terms) |
+
+Source photographs are retained locally for training and evaluation. Only learned model parameters and aggregated composition data are distributed with the application.
+
+Additional license information is available in the application settings.
+
+## Team Gaslighteam
+
+| Member | Role |
+|---|---|
+| Kim Taeho | Team Lead · Camera, UI, Integration, Feedback |
+| Seojun | Composition Recommendation · CLIP · Data Pipeline |
+| Han Eungyu | Pose Detection · Coaching Engine · Reference Analysis |
+| Kim Bomin | Training Data · Research · Documentation · QA |
+
+---
+
+**GUDORY — 사진 감각, 빌려드릴게요.**
