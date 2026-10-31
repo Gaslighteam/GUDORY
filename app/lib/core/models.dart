@@ -79,7 +79,7 @@ class TargetComposition {
   final double tolY;
   final double tolRollDeg;
 
-  /// Either 'reference' or 'category:<id>'.
+  /// Either `'reference'` or `'category:<id>'`.
   final String source;
 
   static const fallback = TargetComposition(

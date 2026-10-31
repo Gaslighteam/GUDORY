@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.gaslighteam.gudory"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37 // some plugins require 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
