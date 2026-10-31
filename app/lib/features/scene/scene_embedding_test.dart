@@ -27,6 +27,47 @@ PersonMask halfMask() =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
+    'landscape empty/full masks and crop exclusion have distinct reasons',
+    () {
+      for (final turn in [-1, 1]) {
+        final source = stripeNv21();
+        for (final entry in <List<double>, String>{
+          [0, 0, 0, 0]: 'mask/empty',
+          [1, 1, 1, 1]: 'mask/full',
+        }.entries) {
+          expect(
+            () => prepareRecommendationInput((
+              source,
+              PersonMask(width: 2, height: 2, confidences: entry.key),
+              SceneView(quarterTurns: turn),
+            )),
+            throwsA(
+              isA<SceneFailure>()
+                  .having((e) => e.code, 'reason', entry.value)
+                  .having((e) => e.trace!.quarterTurns, 'held side', turn),
+            ),
+          );
+        }
+        expect(
+          () => prepareRecommendationInput((
+            source,
+            halfMask(),
+            SceneView(quarterTurns: turn, left: .5, width: .5),
+          )),
+          throwsA(
+            isA<SceneFailure>()
+                .having((e) => e.code, 'reason', 'mask/empty-crop')
+                .having(
+                  (e) => e.trace!.sourceForeground,
+                  'pre-crop foreground',
+                  greaterThan(0),
+                ),
+          ),
+        );
+      }
+    },
+  );
+  test(
     'production tensor preserves Step 2 mapping for all sensor rotations and front lens',
     () async {
       for (final rotation in [0, 90, 180, 270]) {

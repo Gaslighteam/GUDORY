@@ -20,12 +20,15 @@ class SceneEmbeddingTrace {
     this.maskHeight = 0,
     this.foreground = 0,
     this.pixels = 0,
+    this.sourceForeground = 0,
   });
   final int width, height, sensorRotation, quarterTurns;
   final int maskWidth, maskHeight, foreground, pixels;
+  final int sourceForeground;
   String get summary =>
       'input=${width}x$height sensor=$sensorRotation '
-      'q=$quarterTurns mask=${maskWidth}x$maskHeight foreground=$foreground/$pixels';
+      'q=$quarterTurns mask=${maskWidth}x$maskHeight foreground=$foreground/$pixels '
+      'source_foreground=$sourceForeground';
 }
 
 /// Bounded reason codes, not native exception messages or personal file paths.
@@ -179,8 +182,10 @@ PreparedRecommendationInput prepareRecommendationInput(
     height: raw.height,
     numChannels: 1,
   );
+  var sourceForeground = 0;
   for (final p in foreground) {
     p.r = mask.atSource(frame, p.x * 4, p.y * 4) >= .5 ? 255 : 0;
+    if (p.r > 0) sourceForeground++;
   }
   img.Image shot(img.Image source) {
     var image = img.copyRotate(source, angle: frame.rotation);
@@ -224,9 +229,13 @@ PreparedRecommendationInput prepareRecommendationInput(
     maskHeight: mask.height,
     foreground: filled,
     pixels: pixelCount,
+    sourceForeground: sourceForeground,
   );
   if (filled == 0) {
-    throw SceneFailure('mask/empty', trace: trace);
+    throw SceneFailure(
+      sourceForeground > 0 ? 'mask/empty-crop' : 'mask/empty',
+      trace: trace,
+    );
   }
   if (filled == pixelCount) {
     throw SceneFailure('mask/full', trace: trace);

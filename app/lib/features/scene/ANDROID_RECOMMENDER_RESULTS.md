@@ -1,5 +1,9 @@
 # Physical Android Recommender smoke verification
 
+Update: successful indoor landscape matching in both directions was subsequently
+observed. See `LANDSCAPE_DIAGNOSIS.md` for the later evidence and preprocessing
+correction. The initial observations below remain a historical record.
+
 Device: Samsung SM-S937N (S25 Edge), Android 16. Date: 2026-10-31 KST.
 The standalone Recommender diagnostic debug APK was installed with `adb install
 -r`, preserving existing app data. No training photos, camera frames, screenshots,

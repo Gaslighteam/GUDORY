@@ -36,6 +36,12 @@ additional visible crop; production crop-provider wiring is a separate lead task
 
 ## Required checks
 
+For the latest build, first confirm console output
+`SCENE PREPROCESS PARITY synthetic_rgb=9/9`. Then perform the checks below.
+For fallbacks, record the reason code and source/selected foreground counts:
+`mask/empty`, `mask/full`, `mask/empty-crop`, `model/load-failed`,
+`clip/inference-failed`, geometry errors and missing clusters are distinct.
+
 1. **Three backgrounds:** indoor, street and open sky, with one visible person
    and usable background. Stay still and tap **새 배경 분석**, then **1·3·5 비교**.
    Record phone model/Android version, background label and orientation. Save
