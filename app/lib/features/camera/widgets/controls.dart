@@ -55,7 +55,17 @@ class RoundIconButton extends StatelessWidget {
   }
 }
 
-/// Zoom presets (`.5 / 1x / 3`) plus continuous zoom: drag the pill
+/// Zoom labels. Live value always has one decimal (0.9× / 1.0× / 1.1×);
+/// the old formatter turned 0.95 into ".10".
+abstract final class ZoomControlLabels {
+  static String live(double z) => '${z.toStringAsFixed(1)}×';
+
+  /// Compact preset chip label: .6 / 1 / 2 / 3.
+  static String preset(double z) =>
+      z < 1 ? '.${(z * 10).round()}' : '${z.round()}';
+}
+
+/// Zoom presets (`.6 / 1 / 2 / 3`) plus continuous zoom: drag the pill
 /// sideways to open a slider covering every level the camera supports.
 class ZoomControl extends StatefulWidget {
   const ZoomControl({
@@ -85,14 +95,6 @@ class _ZoomControlState extends State<ZoomControl> {
   void dispose() {
     _hide?.cancel();
     super.dispose();
-  }
-
-  static String format(double z) {
-    if (z < 1) return '.${(z * 10).round()}';
-    final rounded = (z * 10).round() / 10;
-    return rounded == rounded.roundToDouble()
-        ? '${rounded.round()}'
-        : rounded.toStringAsFixed(1);
   }
 
   // Log scale so 0.5→1 and 1→10 get comparable travel.
@@ -162,7 +164,9 @@ class _ZoomControlState extends State<ZoomControl> {
                       : Colors.transparent,
                 ),
                 child: Text(
-                  p == active ? '${format(widget.zoom)}x' : format(p),
+                  p == active
+                      ? ZoomControlLabels.live(widget.zoom)
+                      : ZoomControlLabels.preset(p),
                   style: TextStyle(
                     fontSize: p == active ? 14 : 13,
                     fontWeight: FontWeight.w600,
@@ -189,7 +193,7 @@ class _ZoomControlState extends State<ZoomControl> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '${format(widget.zoom)}x',
+            ZoomControlLabels.live(widget.zoom),
             style: const TextStyle(
               color: AppColors.accent,
               fontSize: 15,
@@ -215,8 +219,8 @@ class _ZoomControlState extends State<ZoomControl> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${format(widget.min)}x', style: _small),
-              Text('${format(widget.max)}x', style: _small),
+              Text(ZoomControlLabels.live(widget.min), style: _small),
+              Text(ZoomControlLabels.live(widget.max), style: _small),
             ],
           ),
         ],
