@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 
+import 'exif_orientation.dart';
+
 import '../../core/models.dart';
 
 /// Visible part of the portrait camera frame, normalized 0~1.
@@ -103,6 +105,22 @@ Future<String> finishShot(
 
 String _finish(_ShotJob job) {
   final bytes = File(job.path).readAsBytesSync();
+
+  // Fast path (3:4 preview): the preview shows the whole still, so nothing
+  // to crop; a landscape shot only needs its EXIF orientation turned. No
+  // decode/re-encode: ~instant instead of 1-3 s, and no quality loss.
+  final c = job.crop;
+  final whole =
+      c.left <= 0.005 && c.top <= 0.005 && c.width >= 0.99 && c.height >= 0.99;
+  if (whole) {
+    if (job.quarterTurns == 0) return job.path;
+    final rotated = rotateExifOrientation(bytes, job.quarterTurns);
+    if (rotated != null) {
+      final file = File(_outPath(job.path))..writeAsBytesSync(rotated);
+      return file.path;
+    }
+  }
+
   final decoded = img.decodeImage(bytes);
   if (decoded == null) return job.path;
   var photo = img.bakeOrientation(decoded);
@@ -132,11 +150,10 @@ String _finish(_ShotJob job) {
   }
   if (identical(photo, decoded)) return job.path;
 
-  final base = job.path.replaceFirst(
-    RegExp(r'\.(jpe?g)$', caseSensitive: false),
-    '',
-  );
-  final file = File('${base}_gudory.jpg')
+  final file = File(_outPath(job.path))
     ..writeAsBytesSync(Uint8List.fromList(img.encodeJpg(photo, quality: 95)));
   return file.path;
 }
+
+String _outPath(String path) =>
+    '${path.replaceFirst(RegExp(r'\.(jpe?g)$', caseSensitive: false), '')}_gudory.jpg';
