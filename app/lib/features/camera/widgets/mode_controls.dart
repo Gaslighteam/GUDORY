@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models.dart';
+import '../../feedback/instruction_text.dart';
 
 /// Top-left mode switch: the selected mode is a text pill, the other one is
 /// a compact icon button; the change animates.
@@ -356,22 +357,31 @@ class ExpandFromButton extends AnimatedWidget {
 }
 
 /// The ⠿ menu, expanded in place from its button: how-to and instruction
-/// language; × (where the button was) closes it.
-class CameraMenuPanel extends StatelessWidget {
+/// language; × (where the button was) closes it. 언어 morphs the same pill
+/// into the three languages, with the current one selected.
+class CameraMenuPanel extends StatefulWidget {
   const CameraMenuPanel({
     super.key,
-    required this.languageLabel,
+    required this.language,
     required this.onTutorial,
     required this.onLanguage,
     required this.onClose,
     this.quarterTurns = 0,
   });
 
-  final String languageLabel;
+  /// Current instruction language code (`ko` / `en` / `ja`).
+  final String language;
   final VoidCallback onTutorial;
-  final VoidCallback onLanguage;
+  final ValueChanged<String> onLanguage;
   final VoidCallback onClose;
   final int quarterTurns;
+
+  @override
+  State<CameraMenuPanel> createState() => _CameraMenuPanelState();
+}
+
+class _CameraMenuPanelState extends State<CameraMenuPanel> {
+  bool _languages = false;
 
   @override
   Widget build(BuildContext context) {
@@ -385,10 +395,31 @@ class CameraMenuPanel extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _item(Icons.help_outline, '사용법', onTutorial),
-          _item(Icons.translate, languageLabel, onLanguage),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.centerRight,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.centerRight,
+                children: [...previous, ?current],
+              ),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(
+                    begin: const Offset(0.12, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: _languages ? _languageRow() : _menuRow(),
+            ),
+          ),
           IconButton(
-            onPressed: onClose,
+            onPressed: widget.onClose,
             icon: const Icon(Icons.close, color: Colors.white),
             tooltip: '닫기',
           ),
@@ -396,6 +427,59 @@ class CameraMenuPanel extends StatelessWidget {
       ),
     );
   }
+
+  Widget _menuRow() => Row(
+    key: const ValueKey('menu'),
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _item(Icons.help_outline, '사용법', widget.onTutorial),
+      _item(
+        Icons.translate,
+        instructionLanguages[widget.language] ?? '한국어',
+        () => setState(() => _languages = true),
+      ),
+    ],
+  );
+
+  Widget _languageRow() => Row(
+    key: const ValueKey('languages'),
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final entry in instructionLanguages.entries)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(19),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              widget.onLanguage(entry.key);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: entry.key == widget.language
+                    ? Colors.white
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(19),
+              ),
+              child: Text(
+                entry.value,
+                style: TextStyle(
+                  color: entry.key == widget.language
+                      ? Colors.black
+                      : AppColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 
   Widget _item(IconData icon, String label, VoidCallback onTap) => InkWell(
     borderRadius: BorderRadius.circular(22),
@@ -406,7 +490,7 @@ class CameraMenuPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           AnimatedRotation(
-            turns: quarterTurns / 4,
+            turns: widget.quarterTurns / 4,
             duration: const Duration(milliseconds: 250),
             child: Icon(icon, color: Colors.white, size: 20),
           ),
