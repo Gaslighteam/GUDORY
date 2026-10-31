@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
@@ -6,7 +9,11 @@ import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/theme.dart';
+import '../../core/models.dart';
+import '../feedback/instruction_text.dart';
+import '../feedback/sensory_feedback.dart';
 import 'camera_service.dart';
+import 'coaching.dart';
 import 'shot_state.dart';
 import 'widgets/controls.dart';
 import 'widgets/instruction_bubble.dart';
@@ -22,8 +29,13 @@ class CameraScreen extends ConsumerStatefulWidget {
 class _CameraScreenState extends ConsumerState<CameraScreen>
     with WidgetsBindingObserver {
   bool _capturing = false;
+  Timer? _autoShutter;
+
+  /// "Aligned" must hold this long before the auto shutter fires.
+  static const _holdBeforeShot = Duration(seconds: 1);
 
   CameraService get _camera => ref.read(cameraServiceProvider);
+  SensoryFeedback get _feedback => ref.read(feedbackProvider);
 
   @override
   void initState() {
@@ -35,9 +47,30 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   @override
   void dispose() {
+    _autoShutter?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     super.dispose();
+  }
+
+  void _onInstruction(CoachInstruction? previous, CoachInstruction? next) {
+    if (next == null) {
+      _autoShutter?.cancel();
+      _feedback.stop();
+      return;
+    }
+    if (next.aligned) {
+      if (previous?.aligned != true) {
+        _feedback.announce(next, 'ko');
+        _feedback.aligned();
+        _autoShutter?.cancel();
+        _autoShutter = Timer(_holdBeforeShot, _capture);
+      }
+      return;
+    }
+    _autoShutter?.cancel();
+    _feedback.announce(next, 'ko');
+    _feedback.proximity(next.error);
   }
 
   @override
@@ -52,6 +85,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   Future<void> _capture() async {
     if (_capturing || !_camera.isReady) return;
+    _autoShutter?.cancel();
+    _feedback.stop();
     setState(() => _capturing = true);
     try {
       final file = await _camera.takePicture();
@@ -71,6 +106,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       // A reference and a manual category apply to one shot only.
       ref.read(referenceProvider.notifier).clear();
       ref.read(categoryProvider.notifier).clearManual();
+      ref.read(coachingProvider.notifier).reset();
       if (mounted) context.push('/result', extra: shot);
     } catch (_) {
       _toast('사진을 찍지 못했어요. 다시 눌러 주세요');
@@ -111,6 +147,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final reference = ref.watch(referenceProvider);
     final category = ref.watch(categoryProvider);
     final lastShot = ref.watch(lastShotProvider);
+    final instruction = ref.watch(coachingProvider);
+    ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -127,10 +165,26 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     const GridOverlay(),
                     const CenterCrosshair(),
                   ],
-                  // TODO(lead): drive from CoachEngine at integration 1 (22:00).
-                  const Align(
-                    alignment: Alignment(0, -0.55),
-                    child: InstructionBubble(text: '사진 감각, 빌려드릴게요'),
+                  Align(
+                    alignment: const Alignment(0, -0.55),
+                    child: GestureDetector(
+                      // Debug builds: long-press plays a scripted session.
+                      onLongPress: kDebugMode
+                          ? ref.read(coachingProvider.notifier).runDemo
+                          : null,
+                      child: instruction == null
+                          ? const InstructionBubble(text: '사진 감각, 빌려드릴게요')
+                          : InstructionBubble(
+                              text: InstructionText.of(
+                                instruction.key,
+                                instruction.amount,
+                              ),
+                              direction: InstructionText.arrowOf(
+                                instruction.key,
+                              ),
+                              highlight: instruction.aligned,
+                            ),
+                    ),
                   ),
                   SafeArea(
                     child: Padding(
@@ -198,7 +252,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     : () => context.push('/result', extra: lastShot),
                 onShutter: camera.isReady ? _capture : null,
                 onFlip: camera.canFlip ? camera.flip : null,
-                armed: false,
+                armed: instruction?.aligned ?? false,
                 busy: _capturing,
               ),
             ),

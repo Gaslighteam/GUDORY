@@ -39,3 +39,4 @@ flutter:
     - assets/categories.json
     - assets/clip/
     - assets/demo/
+    - assets/sounds/
