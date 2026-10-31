@@ -30,7 +30,7 @@ GUDORY/
 | Beeps | `audioplayers` | faster beeps when closer |
 | Pick photo | `image_picker` | reference photo |
 | Save photo | `gal` | save result to gallery |
-| Local DB | `sqflite` | shot history, settings |
+| Local DB | `sqflite` | shot history (settings are a JSON file, `features/settings/app_settings.dart`) |
 | Files | `path_provider` | CLIP model location |
 | HTTP | `http` | big model download, LLM API |
 | Keep awake | `wakelock_plus` | screen stays on while coaching |

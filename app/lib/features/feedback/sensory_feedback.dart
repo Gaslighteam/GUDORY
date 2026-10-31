@@ -8,9 +8,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
 
 import '../../core/contracts.dart';
+import '../settings/app_settings.dart';
 
 final feedbackProvider = Provider<SensoryFeedback>((ref) {
   final feedback = SensoryFeedback()..init();
+  ref.listen(settingsProvider, (_, s) {
+    feedback
+      ..beepOn = s.beep
+      ..dingOn = s.ding
+      ..vibrateOn = s.vibration;
+    if (!s.beep) feedback.stop();
+  }, fireImmediately: true);
   ref.onDispose(feedback.dispose);
   return feedback;
 });
@@ -23,6 +31,8 @@ class SensoryFeedback implements FeedbackService {
   bool _hasVibrator = false;
 
   bool beepOn = true;
+  bool dingOn = true;
+  bool vibrateOn = true;
 
   Future<void> init() async {
     try {
@@ -52,9 +62,11 @@ class SensoryFeedback implements FeedbackService {
   void aligned() {
     _beepTimer?.cancel();
     _beepTimer = null;
-    _ding.stop();
-    _ding.resume();
-    if (_hasVibrator) Vibration.vibrate(duration: 300);
+    if (dingOn) {
+      _ding.stop();
+      _ding.resume();
+    }
+    if (vibrateOn && _hasVibrator) Vibration.vibrate(duration: 300);
   }
 
   @override
