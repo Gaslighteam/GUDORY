@@ -11,6 +11,7 @@ from background_clip import ClipEncoder, SelfieSegmenter, SegmentationFailure, b
 from import_photos import IMAGE_EXTENSIONS
 from pose_analysis import MediaPipePhotoAnalyzer, center_crop_rect, load_photo
 from recommendation_assets import Sample, build_asset, serialize_asset
+from aggregate_baseline import load_baseline, compare_baseline
 
 
 def collect_samples(root, pose, segmenter, encoder, team_weight=3, supplementary_weight=1):
@@ -111,10 +112,13 @@ def main(argv=None):
     parser.add_argument("--report", type=Path, default=Path("tools/report.md"))
     parser.add_argument("--team-weight", type=float, default=3)
     parser.add_argument("--supplementary-weight", type=float, default=1)
+    parser.add_argument("--baseline", type=Path, default=Path(__file__).with_name("recommendation_baseline.json"),
+                        help="Aggregate-only baseline used for report comparison, never training")
     args = parser.parse_args(argv)
     import math
     if not args.photos.is_dir() or not all(math.isfinite(w) and w > 0 for w in (args.team_weight, args.supplementary_weight)):
         parser.error("Require a photo directory and positive finite source weights")
+    baseline = load_baseline(args.baseline)
     with ExitStack() as stack:
         pose = MediaPipePhotoAnalyzer(args.pose_model, args.person_model)
         stack.callback(pose.close)
@@ -133,6 +137,9 @@ def main(argv=None):
         with path.open("rb") as stream:
             metadata[name] = hashlib.file_digest(stream, "sha256").hexdigest()
     report = render_report(counts, diagnostics, len(payload), args.team_weight, args.supplementary_weight, metadata)
+    report += "\n" + compare_baseline(baseline, counts, diagnostics, len(payload),
+                                     args.team_weight, args.supplementary_weight,
+                                     hashlib.sha256(payload).hexdigest())
     # Validate all output before replacing either file; originals are untouched.
     for path, data in ((args.out, payload), (args.report, report.encode("utf-8"))):
         path.parent.mkdir(parents=True, exist_ok=True)

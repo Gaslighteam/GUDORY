@@ -20,6 +20,23 @@ uv run --no-project --python tools/.venv/Scripts/python.exe python -m unittest d
 
 ## Recommendation generation
 
+`app/assets/recommend.json` is a provisional snapshot and may be regenerated
+when additional photos arrive. Each invocation recursively scans the complete
+`--photos` directory (normally `data/photos/`), reruns pose and segmentation/CLIP,
+and recomputes all weighted boundaries, clusters and fallbacks from scratch.
+It never appends statistics to or trains from the previous JSON/report. No
+per-photo cache is used; unchanged data, models, runtime and configuration retain
+deterministic output. Keep generated outputs outside the input photo tree.
+
+The fixed aggregate-only `recommendation_baseline.json` records the verified
+797 processed / 548 CLIP-accepted / 8 portrait clusters / 14 landscape clusters /
+23,478-byte snapshot and its asset hash. Future reports automatically compare
+current totals against this baseline, with configuration-match and hash-match
+indicators. `--baseline` can select another reviewed aggregate-only baseline;
+the pipeline never overwrites it. Baseline values affect reporting only, not
+training, clustering or composition calculations. No filenames, photo IDs,
+per-photo measurements, image derivatives or new dependencies are needed.
+
 The recommendation requirements add the separately approved ONNX Runtime and
 scikit-learn dependencies to the pose requirements. For pose-only use, install
 `requirements-pose.txt` and run only `test_pose_analysis.py`/`test_import_photos.py`.

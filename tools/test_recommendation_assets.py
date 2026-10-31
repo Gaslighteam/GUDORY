@@ -18,6 +18,7 @@ from recommendation_assets import (FRAMINGS, Sample, aggregate, build_asset,
     deterministic_clusters, level_for, quantize_center, serialize_asset,
     validate_asset, weighted_quantile)
 from recommendation_pipeline import collect_samples, render_report
+from aggregate_baseline import load_baseline, compare_baseline
 
 
 def sample(orientation="portrait", scale=.2, framing="fullBody", weight=1, axis=0):
@@ -212,6 +213,87 @@ class AggregationTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_report_only_baseline_is_fixed_and_rejects_per_photo_fields(self):
+        path = Path(__file__).with_name("recommendation_baseline.json")
+        before = path.read_bytes()
+        baseline = load_baseline(path)
+        self.assertEqual(baseline["metrics"]["processed"], 797)
+        self.assertEqual(baseline["metrics"]["clip_accepted"], 548)
+        self.assertEqual(baseline["metrics"]["portrait_clusters"], 8)
+        self.assertEqual(baseline["metrics"]["landscape_clusters"], 14)
+        self.assertEqual(baseline["metrics"]["json_bytes"], 23478)
+        info = {"portrait": {"photos": 206, "clusters": 8}, "landscape": {"photos": 342, "clusters": 14}}
+        report = compare_baseline(baseline, {"processed": 800, "pose_accepted": 552, "accepted": 550},
+                                  info, 24000, 3, 1, baseline["asset_sha256"])
+        self.assertIn("processed | 797 | 800 | +3", report)
+        self.assertIn("clip_accepted | 548 | 550 | +2", report)
+        self.assertIn("Configuration matches fixed baseline: yes", report)
+        self.assertEqual(path.read_bytes(), before)
+        with tempfile.TemporaryDirectory() as temp:
+            custom = Path(temp) / "baseline.json"
+            invalid = copy.deepcopy(baseline)
+            invalid["photo_id"] = "synthetic prohibited field"
+            custom.write_text(json.dumps(invalid), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_baseline(custom)
+
+    def test_baseline_configuration_change_is_explicit(self):
+        baseline = load_baseline(Path(__file__).with_name("recommendation_baseline.json"))
+        info = {"portrait": {"photos": 206, "clusters": 8}, "landscape": {"photos": 342, "clusters": 14}}
+        report = compare_baseline(baseline, {"processed": 797, "pose_accepted": 552, "accepted": 548},
+                                  info, 23478, 1, 1, "0" * 64)
+        self.assertIn("Configuration matches fixed baseline: no", report)
+        self.assertIn("Aggregate asset SHA-256 matches fixed baseline: no", report)
+
+    def test_full_rebuild_discovers_new_nested_photos_without_appending(self):
+        import contextlib
+        import io
+        import recommendation_pipeline as pipeline
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            photos = root / "photos"
+            for source, size in (("team", (40, 60)), ("openimages", (60, 40))):
+                folder = photos / source / "nested"
+                folder.mkdir(parents=True)
+                for i in range(8):
+                    Image.new("RGB", size, "red").save(folder / f"fixture{i}.png")
+            model = root / "synthetic.model"
+            model.write_bytes(b"synthetic model fixture")
+            output, report = root / "recommend.json", root / "report.md"
+            output.write_bytes(b"obsolete output must never be read as input")
+            args = ["--photos", str(photos), "--pose-model", str(model), "--person-model", str(model),
+                    "--segmentation-model", str(model), "--clip-model", str(model),
+                    "--out", str(output), "--report", str(report)]
+            pose = Mock()
+            def analyze(path):
+                with Image.open(path) as image:
+                    o = "portrait" if image.height > image.width else "landscape"
+                    return Analysis("accepted", sample(o).composition, o, image.width, image.height)
+            pose.analyze.side_effect = analyze
+            with patch.object(pipeline, "MediaPipePhotoAnalyzer", return_value=pose), \
+                 patch.object(pipeline, "SelfieSegmenter", return_value=Mock(side_effect=lambda _: np.tile([0, 1], (2, 1)))), \
+                 patch.object(pipeline, "ClipEncoder", return_value=Mock(return_value=sample().embedding)), \
+                 patch.object(pipeline, "build_asset", wraps=build_asset) as build, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                pipeline.main(args)
+                self.assertEqual(len(build.call_args.args[0]), 16)
+                extra = photos / "team" / "another" / "deeper"
+                extra.mkdir(parents=True)
+                new_photo = extra / "fixture_new.png"
+                Image.new("RGB", (40, 60), "red").save(new_photo)
+                original = new_photo.read_bytes()
+                pipeline.main(args)
+                second_asset, second_report = output.read_bytes(), report.read_bytes()
+                self.assertEqual(len(build.call_args.args[0]), 17)
+                self.assertEqual(sum(c["n"] for c in json.loads(second_asset)["clusters"]), 17)
+                output.write_bytes(b"stale unrelated statistics")
+                pipeline.main(args)
+                self.assertEqual(len(build.call_args.args[0]), 17)
+                self.assertEqual(output.read_bytes(), second_asset)
+                self.assertEqual(report.read_bytes(), second_report)
+                self.assertEqual(new_photo.read_bytes(), original)
+                self.assertEqual(pose.analyze.call_count, 16 + 17 + 17)
+
     def test_insufficient_data_preserves_prior_outputs(self):
         import recommendation_pipeline as pipeline
         with tempfile.TemporaryDirectory() as temp:
