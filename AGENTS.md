@@ -55,6 +55,7 @@ enum InstructionKey {
   aligned,                     // good, hold still
   turnLandscape, turnPortrait, // target orientation differs from how the phone is held
   addReference,                // custom mode with no reference
+  raisePhone,                  // phone lies flat (rollReliable false) and the other axes are aligned: axis null, aligned false
 }
 enum ShootMode { recommend, custom }
 enum ShotOrientation { portrait, landscape }

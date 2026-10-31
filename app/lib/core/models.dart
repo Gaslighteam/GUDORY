@@ -22,6 +22,7 @@ enum InstructionKey {
   turnLandscape, // target orientation differs from how the phone is held
   turnPortrait,
   addReference, // custom mode with no reference
+  raisePhone, // phone lies flat (PoseFrame.rollReliable == false): tilt it up
 }
 
 /// 추천 (recommend) or 맞춤 (custom, reference-driven).
