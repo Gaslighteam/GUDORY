@@ -13,13 +13,14 @@ import '../../app/theme.dart';
 import '../../core/models.dart';
 import '../feedback/instruction_text.dart';
 import '../feedback/sensory_feedback.dart';
+import '../tutorial/tutorial_screen.dart';
 import 'camera_service.dart';
 import 'coaching.dart';
 import 'framing.dart';
 import 'shot_orientation.dart';
 import 'shot_state.dart';
 import 'widgets/controls.dart';
-import 'widgets/handover.dart';
+import 'widgets/language.dart';
 import 'widgets/instruction_bubble.dart';
 import 'widgets/mode_controls.dart';
 import 'widgets/overlays.dart';
@@ -37,9 +38,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   bool _capturing = false;
   String? _toastText;
 
-  /// Hand-over guide / "done" message shown in the bubble for a moment.
-  String? _note;
-  Timer? _noteTimer;
   Timer? _toastTimer;
   double _pinchBase = 1;
 
@@ -57,12 +55,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     _camera.start();
     // Create the recommender now so CLIP loads while the user frames the shot.
     ref.read(recommenderProvider);
+    _showTutorialOnFirstLaunch();
   }
 
   @override
   void dispose() {
     _toastTimer?.cancel();
-    _noteTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     super.dispose();
@@ -119,13 +117,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       final saved = await _saveToGallery(path);
       // References stay until the user resets them.
       ref.read(coachingProvider.notifier).reset();
-      final handover = ref.read(handoverProvider);
-      if (handover.active && saved) {
-        final done = InstructionText.handoverDone(handover.lang);
-        _showNote(done, const Duration(seconds: 4));
-      } else {
-        _toast(saved ? '앨범에 저장했어요' : '사진을 저장하지 못했어요');
-      }
+      _toast(saved ? '앨범에 저장했어요' : '사진을 저장하지 못했어요');
     } catch (_) {
       _toast('사진을 찍지 못했어요. 다시 눌러 주세요');
     } finally {
@@ -174,46 +166,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     _toast(front ? '전면 카메라: 구도 안내 없이 찍어요' : '구도 안내를 다시 시작해요');
   }
 
-  /// Language for instructions: the photographer's while handed over.
-  String get _lang {
-    final handover = ref.read(handoverProvider);
-    return handover.active ? handover.lang : 'ko';
-  }
-
-  /// Custom mode coaches toward a reference, so handing the phone over
-  /// without one would leave the photographer on an empty prompt.
-  bool get _handoverBlocked =>
-      ref.read(modeProvider).mode == ShootMode.custom &&
-      ref.read(referenceProvider).isEmpty;
-
-  Future<void> _startHandover() async {
-    if (_handoverBlocked) {
-      _toast('레퍼런스 사진을 먼저 추가해 주세요');
-      return;
-    }
-    final lang = await pickPhotographerLanguage(
-      context,
-      ref.read(handoverProvider).lang,
-    );
+  Future<void> _pickLanguage() async {
+    final lang = await pickLanguage(context, ref.read(languageProvider));
     if (lang == null || !mounted) return;
-    ref.read(handoverProvider.notifier).start(lang);
-    final guide = InstructionText.handoverGuide(lang);
-    _showNote(guide, const Duration(seconds: 3));
+    ref.read(languageProvider.notifier).set(lang);
   }
 
-  void _endHandover() {
-    ref.read(handoverProvider.notifier).stop();
-    _noteTimer?.cancel();
-    setState(() => _note = null);
-    _toast('주인 화면으로 돌아왔어요');
-  }
+  void _openTutorial() => context.push('/tutorial');
 
-  void _showNote(String text, Duration duration) {
-    _noteTimer?.cancel();
-    setState(() => _note = text);
-    _noteTimer = Timer(duration, () {
-      if (mounted) setState(() => _note = null);
-    });
+  Future<void> _showTutorialOnFirstLaunch() async {
+    if (!await TutorialGate.shouldShow() || !mounted) return;
+    _openTutorial();
   }
 
   void _toast(String message) {
@@ -247,207 +210,178 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final held = ref.watch(heldOrientationProvider);
     final turns = held.quarterTurns;
     final custom = mode.mode == ShootMode.custom;
-    final handover = ref.watch(handoverProvider);
-    final handedOver = handover.active;
+    final lang = ref.watch(languageProvider);
     // Front camera = plain camera: no coaching UI at all.
     final front = ref.watch(frontCameraProvider);
     ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
-    return PopScope(
-      // While handed over, the system back gesture must not leave the app.
-      canPop: !handedOver,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: ListenableBuilder(
-          listenable: camera,
-          builder: (context, _) => Column(
-            children: [
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, area) {
-                    _publishVisibleCrop(area.biggest, camera);
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        GestureDetector(
-                          onScaleStart: (_) => _pinchBase = camera.zoom,
-                          onScaleUpdate: (d) {
-                            if (d.pointerCount < 2) return;
-                            camera.setZoom(_pinchBase * d.scale);
-                          },
-                          child: _Preview(
-                            camera: camera,
-                            onRetry: camera.start,
-                          ),
-                        ),
-                        if (camera.isReady) ...[
-                          const GridOverlay(),
-                          const CenterCrosshair(),
-                        ],
-                        if (!front)
-                          Align(
-                            alignment: const Alignment(0, -0.5),
-                            child: AnimatedRotation(
-                              turns: turns / 4,
-                              duration: const Duration(milliseconds: 250),
-                              child: GestureDetector(
-                                // Debug builds: long-press plays a scripted session,
-                                // double-tap opens the pose overlay.
-                                onLongPress: kDebugMode
-                                    ? ref
-                                          .read(coachingProvider.notifier)
-                                          .runDemo
-                                    : null,
-                                onDoubleTap: kDebugMode
-                                    ? () => context.push('/debug/pose')
-                                    : null,
-                                child: _bubble(instruction, handover),
-                              ),
-                            ),
-                          ),
-                        // Pinned to the top: inside an expanded Stack an unpositioned
-                        // Row would stretch and center its buttons vertically.
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: SafeArea(
-                            bottom: false,
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                              child: handedOver
-                                  ? Row(
-                                      children: [
-                                        HandoverLockPill(
-                                          onUnlock: _endHandover,
-                                        ),
-                                      ],
-                                    )
-                                  : Row(
-                                      children: [
-                                        if (!front)
-                                          ModeToggle(
-                                            mode: mode.mode,
-                                            onChanged: ref
-                                                .read(modeProvider.notifier)
-                                                .setMode,
-                                          ),
-                                        if (!front &&
-                                            custom &&
-                                            !reference.isEmpty) ...[
-                                          const SizedBox(width: 10),
-                                          RoundIconButton(
-                                            icon: Icons.close,
-                                            onPressed: _resetReferences,
-                                            size: _topButton,
-                                            tooltip: '레퍼런스 초기화',
-                                            quarterTurns: turns,
-                                          ),
-                                        ],
-                                        const Spacer(),
-                                        if (!front)
-                                          Opacity(
-                                            opacity: custom && reference.isEmpty
-                                                ? 0.4
-                                                : 1,
-                                            child: RoundIconButton(
-                                              icon: Icons.front_hand_outlined,
-                                              onPressed: _startHandover,
-                                              size: _topButton,
-                                              tooltip: '폰 건네기',
-                                              quarterTurns: turns,
-                                            ),
-                                          ),
-                                        if (!front) const SizedBox(width: 10),
-                                        RoundIconButton(
-                                          icon: switch (camera.flashMode) {
-                                            FlashMode.auto => Icons.flash_auto,
-                                            FlashMode.always => Icons.flash_on,
-                                            _ => Icons.flash_off,
-                                          },
-                                          onPressed: camera.isReady
-                                              ? camera.cycleFlash
-                                              : null,
-                                          size: _topButton,
-                                          tooltip: '플래시',
-                                          quarterTurns: turns,
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                          ),
-                        ),
-                        if (_toastText != null)
-                          SafeArea(
-                            child: Align(
-                              alignment: const Alignment(0, -0.82),
-                              child: _Toast(text: _toastText!),
-                            ),
-                          ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 14,
-                          child: Center(
-                            child: camera.isReady && !handedOver
-                                ? ZoomControl(
-                                    min: camera.minZoom,
-                                    max: camera.maxZoom,
-                                    zoom: camera.zoom,
-                                    presets: camera.zoomPresets,
-                                    onChanged: camera.setZoom,
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                        ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: ListenableBuilder(
+        listenable: camera,
+        builder: (context, _) => Column(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, area) {
+                  _publishVisibleCrop(area.biggest, camera);
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      GestureDetector(
+                        onScaleStart: (_) => _pinchBase = camera.zoom,
+                        onScaleUpdate: (d) {
+                          if (d.pointerCount < 2) return;
+                          camera.setZoom(_pinchBase * d.scale);
+                        },
+                        child: _Preview(camera: camera, onRetry: camera.start),
+                      ),
+                      if (camera.isReady) ...[
+                        const GridOverlay(),
+                        const CenterCrosshair(),
                       ],
-                    );
-                  },
-                ),
+                      if (!front)
+                        Align(
+                          alignment: const Alignment(0, -0.5),
+                          child: AnimatedRotation(
+                            turns: turns / 4,
+                            duration: const Duration(milliseconds: 250),
+                            child: GestureDetector(
+                              // Debug builds: long-press plays a scripted session,
+                              // double-tap opens the pose overlay.
+                              onLongPress: kDebugMode
+                                  ? ref.read(coachingProvider.notifier).runDemo
+                                  : null,
+                              onDoubleTap: kDebugMode
+                                  ? () => context.push('/debug/pose')
+                                  : null,
+                              child: _bubble(instruction, lang),
+                            ),
+                          ),
+                        ),
+                      // Pinned to the top: inside an expanded Stack an unpositioned
+                      // Row would stretch and center its buttons vertically.
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: SafeArea(
+                          bottom: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Row(
+                              children: [
+                                if (!front)
+                                  ModeToggle(
+                                    mode: mode.mode,
+                                    onChanged: ref
+                                        .read(modeProvider.notifier)
+                                        .setMode,
+                                  ),
+                                if (!front && custom && !reference.isEmpty) ...[
+                                  const SizedBox(width: 10),
+                                  RoundIconButton(
+                                    icon: Icons.close,
+                                    onPressed: _resetReferences,
+                                    size: _topButton,
+                                    tooltip: '레퍼런스 초기화',
+                                    quarterTurns: turns,
+                                  ),
+                                ],
+                                const Spacer(),
+                                RoundIconButton(
+                                  icon: Icons.help_outline,
+                                  onPressed: _openTutorial,
+                                  size: _topButton,
+                                  tooltip: '사용법',
+                                  quarterTurns: turns,
+                                ),
+                                const SizedBox(width: 10),
+                                LanguageButton(
+                                  lang: lang,
+                                  onPressed: _pickLanguage,
+                                  size: _topButton,
+                                  quarterTurns: turns,
+                                ),
+                                const SizedBox(width: 10),
+                                RoundIconButton(
+                                  icon: switch (camera.flashMode) {
+                                    FlashMode.auto => Icons.flash_auto,
+                                    FlashMode.always => Icons.flash_on,
+                                    _ => Icons.flash_off,
+                                  },
+                                  onPressed: camera.isReady
+                                      ? camera.cycleFlash
+                                      : null,
+                                  size: _topButton,
+                                  tooltip: '플래시',
+                                  quarterTurns: turns,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_toastText != null)
+                        SafeArea(
+                          child: Align(
+                            alignment: const Alignment(0, -0.82),
+                            child: _Toast(text: _toastText!),
+                          ),
+                        ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 14,
+                        child: Center(
+                          child: camera.isReady
+                              ? ZoomControl(
+                                  min: camera.minZoom,
+                                  max: camera.maxZoom,
+                                  zoom: camera.zoom,
+                                  presets: camera.zoomPresets,
+                                  onChanged: camera.setZoom,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-              if (!custom && !handedOver && !front)
-                LevelBar(
-                  level: mode.level,
-                  onChanged: ref.read(modeProvider.notifier).setLevel,
-                ),
-              SafeArea(
-                top: false,
-                child: BottomBar(
-                  reference: custom && !handedOver && !front
-                      ? ReferenceThumb(state: reference, onTap: _onReferenceTap)
-                      : const SizedBox(width: 60),
-                  quarterTurns: turns,
-                  onShutter: camera.isReady ? _capture : null,
-                  onFlip: camera.canFlip && !handedOver ? _flip : null,
-                  armed: instruction?.aligned ?? false,
-                  busy: _capturing,
-                ),
+            ),
+            if (!custom && !front)
+              LevelBar(
+                level: mode.level,
+                onChanged: ref.read(modeProvider.notifier).setLevel,
               ),
-            ],
-          ),
+            SafeArea(
+              top: false,
+              child: BottomBar(
+                reference: custom && !front
+                    ? ReferenceThumb(state: reference, onTap: _onReferenceTap)
+                    : const SizedBox(width: 60),
+                quarterTurns: turns,
+                onShutter: camera.isReady ? _capture : null,
+                onFlip: camera.canFlip ? _flip : null,
+                armed: instruction?.aligned ?? false,
+                busy: _capturing,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _bubble(CoachInstruction? instruction, HandoverState handover) {
-    final note = _note;
-    if (note != null) {
-      return InstructionBubble(text: note, large: handover.active);
-    }
+  Widget _bubble(CoachInstruction? instruction, String lang) {
     if (instruction == null) {
-      return InstructionBubble(
-        text: handover.active
-            ? InstructionText.handoverGuide(handover.lang)
-            : '사진 감각, 빌려드릴게요',
-        large: handover.active,
-      );
+      return const InstructionBubble(text: '사진 감각, 빌려드릴게요');
     }
     return InstructionBubble(
-      text: InstructionText.of(instruction.key, instruction.amount, _lang),
+      text: InstructionText.of(instruction.key, instruction.amount, lang),
       direction: InstructionText.arrowOf(instruction.key),
       highlight: instruction.aligned,
-      large: handover.active,
     );
   }
 }

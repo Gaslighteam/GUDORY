@@ -4,7 +4,7 @@ import 'package:gudory/features/feedback/instruction_text.dart';
 
 void main() {
   test('every key has a sentence in every language', () {
-    for (final lang in photographerLanguages.keys) {
+    for (final lang in instructionLanguages.keys) {
       for (final key in InstructionKey.values) {
         expect(
           InstructionText.of(key, 1, lang),
