@@ -12,6 +12,7 @@ class InstructionBubble extends StatelessWidget {
     required this.text,
     this.direction = ArrowDirection.none,
     this.highlight = false,
+    this.large = false,
   });
 
   final String text;
@@ -20,11 +21,14 @@ class InstructionBubble extends StatelessWidget {
   /// Aligned state: accent border.
   final bool highlight;
 
+  /// Hand-over mode: bigger text for someone who has never seen the app.
+  final bool large;
+
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      constraints: const BoxConstraints(maxWidth: 300),
+      constraints: BoxConstraints(maxWidth: large ? 340 : 300),
       padding: const EdgeInsets.fromLTRB(28, 14, 28, 10),
       decoration: BoxDecoration(
         color: AppColors.bubble,
@@ -39,9 +43,9 @@ class InstructionBubble extends StatelessWidget {
           Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.text,
-              fontSize: AppText.instruction,
+              fontSize: large ? 22 : AppText.instruction,
               fontWeight: FontWeight.w500,
               height: 1.35,
             ),

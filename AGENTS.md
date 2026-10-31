@@ -168,6 +168,7 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 - References: tap the bottom-left slot to pick **one or more** photos (portrait or landscape). The active one (yellow border) is the target; with several, a sheet lets the user switch, add, remove or clear. **References persist across shots** and are removed only by X / "모두 지우기".
 - **No result screen.** After a shot the photo is saved to the GUDORY album and a short toast confirms it.
 - Auto shutter: when `aligned` holds for 1.0 s → vibrate + capture. The shutter button always works.
+- **Hand-over mode** (✋ button left of the flash): the owner picks the photographer's language (한국어 / English / 日本語); the screen then shows only the instruction bubble (larger text), the shutter and a top-left lock pill (**long-press to exit**). Mode toggle, X, level bar, reference slot, zoom and flip are hidden, and the system back gesture is blocked. A guide line is shown/spoken on entry; after a shot "다 찍었어요! 주인에게 돌려주세요" in that language. Instructions and voice use `InstructionText.of(key, amount, lang)` with `lang` = 'ko' | 'en' | 'ja'.
 - No empty buttons or "coming soon" screens; drop what does not work. UI text in Korean, no photography jargon ("틸트" → "폰 윗부분을 앞으로").
 - Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, bottom bar (5-step bar) `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.
 
