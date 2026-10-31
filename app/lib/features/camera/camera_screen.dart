@@ -36,6 +36,12 @@ class CameraScreen extends ConsumerStatefulWidget {
 class _CameraScreenState extends ConsumerState<CameraScreen>
     with WidgetsBindingObserver {
   bool _capturing = false;
+
+  /// Recommend mode: the 5-step composition panel is open.
+  bool _panelOpen = false;
+
+  /// Last saved photo, shown bottom-left outside custom mode.
+  String? _lastShotPath;
   String? _toastText;
 
   Timer? _toastTimer;
@@ -115,6 +121,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         }
       }
       final saved = await _saveToGallery(path);
+      if (saved && mounted) setState(() => _lastShotPath = path);
       // References stay until the user resets them.
       ref.read(coachingProvider.notifier).reset();
       _toast(saved ? '앨범에 저장했어요' : '사진을 저장하지 못했어요');
@@ -174,6 +181,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   void _openTutorial() => context.push('/tutorial');
 
+  void _openMenu() => showCameraMenu(
+    context,
+    languageLabel: instructionLanguages[ref.read(languageProvider)] ?? '한국어',
+    onTutorial: _openTutorial,
+    onLanguage: _pickLanguage,
+  );
+
+  void _setMode(ShootMode mode) {
+    ref.read(modeProvider.notifier).setMode(mode);
+    setState(() => _panelOpen = false);
+    _toast(mode == ShootMode.recommend ? '추천 모드' : '맞춤 모드');
+  }
+
   Future<void> _showTutorialOnFirstLaunch() async {
     if (!await TutorialGate.shouldShow() || !mounted) return;
     _openTutorial();
@@ -213,6 +233,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final lang = ref.watch(languageProvider);
     // Front camera = plain camera: no coaching UI at all.
     final front = ref.watch(frontCameraProvider);
+    final showComposition = !custom && !front;
     ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
     return Scaffold(
@@ -274,9 +295,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                 if (!front)
                                   ModeToggle(
                                     mode: mode.mode,
-                                    onChanged: ref
-                                        .read(modeProvider.notifier)
-                                        .setMode,
+                                    onChanged: _setMode,
+                                    quarterTurns: turns,
                                   ),
                                 if (!front && custom && !reference.isEmpty) ...[
                                   const SizedBox(width: 10),
@@ -289,21 +309,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                   ),
                                 ],
                                 const Spacer(),
-                                RoundIconButton(
-                                  icon: Icons.help_outline,
-                                  onPressed: _openTutorial,
-                                  size: _topButton,
-                                  tooltip: '사용법',
-                                  quarterTurns: turns,
-                                ),
-                                const SizedBox(width: 10),
-                                LanguageButton(
-                                  lang: lang,
-                                  onPressed: _pickLanguage,
-                                  size: _topButton,
-                                  quarterTurns: turns,
-                                ),
-                                const SizedBox(width: 10),
                                 RoundIconButton(
                                   icon: switch (camera.flashMode) {
                                     FlashMode.auto => Icons.flash_auto,
@@ -329,20 +334,60 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                             child: _Toast(text: _toastText!),
                           ),
                         ),
+                      // Composition (recommend only) · zoom · ⠿ menu. The
+                      // composition button expands into the 5-step panel and
+                      // the zoom and menu step aside until it closes.
                       Positioned(
-                        left: 0,
-                        right: 0,
+                        left: 16,
+                        right: 16,
                         bottom: 14,
-                        child: Center(
-                          child: camera.isReady
-                              ? ZoomControl(
-                                  min: camera.minZoom,
-                                  max: camera.maxZoom,
-                                  zoom: camera.zoom,
-                                  presets: camera.zoomPresets,
-                                  onChanged: camera.setZoom,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: _panelOpen && showComposition
+                              ? CompositionPanel(
+                                  key: const ValueKey('panel'),
+                                  level: mode.level,
+                                  onChanged: ref
+                                      .read(modeProvider.notifier)
+                                      .setLevel,
+                                  onClose: () {
+                                    if (mounted) {
+                                      setState(() => _panelOpen = false);
+                                    }
+                                  },
+                                  quarterTurns: turns,
                                 )
-                              : const SizedBox.shrink(),
+                              : Row(
+                                  key: const ValueKey('row'),
+                                  children: [
+                                    SizedBox(
+                                      width: 44,
+                                      child: showComposition
+                                          ? CompositionButton(
+                                              level: mode.level,
+                                              onPressed: () => setState(
+                                                () => _panelOpen = true,
+                                              ),
+                                              quarterTurns: turns,
+                                            )
+                                          : null,
+                                    ),
+                                    Expanded(
+                                      child: Center(
+                                        child: camera.isReady
+                                            ? ZoomControl(
+                                                min: camera.minZoom,
+                                                max: camera.maxZoom,
+                                                zoom: camera.zoom,
+                                                presets: camera.zoomPresets,
+                                                onChanged: camera.setZoom,
+                                              )
+                                            : const SizedBox.shrink(),
+                                      ),
+                                    ),
+                                    MenuDotsButton(onPressed: _openMenu),
+                                  ],
+                                ),
                         ),
                       ),
                     ],
@@ -350,17 +395,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                 },
               ),
             ),
-            if (!custom && !front)
-              LevelBar(
-                level: mode.level,
-                onChanged: ref.read(modeProvider.notifier).setLevel,
-              ),
             SafeArea(
               top: false,
               child: BottomBar(
                 reference: custom && !front
                     ? ReferenceThumb(state: reference, onTap: _onReferenceTap)
-                    : const SizedBox(width: 60),
+                    : LastShotThumb(path: _lastShotPath),
                 quarterTurns: turns,
                 onShutter: camera.isReady ? _capture : null,
                 onFlip: camera.canFlip ? _flip : null,
