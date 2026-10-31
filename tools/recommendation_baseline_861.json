@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "configuration": {
+    "team_weight": 3,
+    "supplementary_weight": 1,
+    "cluster_seed": 0,
+    "max_clusters_per_orientation": 64,
+    "target_photos_per_cluster": 20
+  },
+  "metrics": {
+    "processed": 861,
+    "pose_accepted": 588,
+    "clip_accepted": 584,
+    "portrait_photos": 238,
+    "landscape_photos": 346,
+    "portrait_clusters": 8,
+    "landscape_clusters": 14,
+    "json_bytes": 23888
+  },
+  "asset_sha256": "baa49f324801e6dfd2ace43e4d5243845163222f8a1db7c596c5fbfdb4811e53"
+}
