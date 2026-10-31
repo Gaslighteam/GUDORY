@@ -6,7 +6,7 @@ import 'theme.dart';
 
 final _router = GoRouter(
   routes: [
-    GoRoute(path: '/', builder: (_, __) => const _PlaceholderHome()),
+    GoRoute(path: '/', builder: (_, _) => const _PlaceholderHome()),
     // Feature routes are wired here by the lead as modules land:
     // '/camera' (camera), '/result' (camera), '/debug/pose' (coach), '/debug/scene' (scene)
   ],
