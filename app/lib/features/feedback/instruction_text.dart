@@ -19,9 +19,9 @@ abstract final class InstructionText {
   /// Shown when the phone is handed over, before the first instruction.
   static String handoverGuide(String lang) => switch (lang) {
     'en' =>
-      'Just follow the text on screen.\nIt shoots by itself when it lines up.',
-    'ja' => '画面の文字に従ってください。\n合うと自動で撮影されます。',
-    _ => '화면 글자만 따라 해 주세요.\n맞으면 자동으로 찍혀요',
+      'Just follow the text on screen.\nPress the shutter when it lines up.',
+    'ja' => '画面の文字に従ってください。\n合ったらシャッターを押してください。',
+    _ => '화면 글자만 따라 해 주세요.\n맞으면 셔터를 눌러 주세요',
   };
 
   /// Shown to the photographer after a shot in hand-over mode.
@@ -63,7 +63,7 @@ abstract final class InstructionText {
       InstructionKey.oppositeWay => '반대쪽이에요!',
       InstructionKey.fitWholeBody => '사람 전체가 화면에 들어오게 해 주세요',
       InstructionKey.noPerson => '사람이 화면에 보이게 해 주세요',
-      InstructionKey.aligned => '좋아요! 그대로 멈춰 주세요',
+      InstructionKey.aligned => '좋아요! 지금 셔터를 눌러 주세요',
       InstructionKey.turnLandscape => '폰을 가로로 돌려 주세요',
       InstructionKey.turnPortrait => '폰을 세로로 세워 주세요',
       InstructionKey.addReference => '레퍼런스 사진을 추가해 주세요',
@@ -122,7 +122,7 @@ abstract final class InstructionText {
       InstructionKey.oppositeWay => 'Other way!',
       InstructionKey.fitWholeBody => 'Get the whole person on screen',
       InstructionKey.noPerson => 'Point the camera at the person',
-      InstructionKey.aligned => 'Perfect! Hold still',
+      InstructionKey.aligned => 'Perfect! Press the shutter now',
       InstructionKey.turnLandscape => 'Turn the phone sideways',
       InstructionKey.turnPortrait => 'Hold the phone upright',
       InstructionKey.addReference => 'Add a reference photo',
@@ -184,7 +184,7 @@ abstract final class InstructionText {
       InstructionKey.oppositeWay => '逆です！',
       InstructionKey.fitWholeBody => '全身が画面に入るようにしてください',
       InstructionKey.noPerson => '人が画面に入るようにしてください',
-      InstructionKey.aligned => 'いいですね！そのまま止まってください',
+      InstructionKey.aligned => 'いいですね！今シャッターを押してください',
       InstructionKey.turnLandscape => 'スマホを横にしてください',
       InstructionKey.turnPortrait => 'スマホを縦にしてください',
       InstructionKey.addReference => '参考写真を追加してください',

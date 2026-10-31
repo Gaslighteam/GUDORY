@@ -39,7 +39,7 @@ void main() {
   test('unknown language falls back to Korean', () {
     expect(
       InstructionText.of(InstructionKey.aligned, 1, 'fr'),
-      '좋아요! 그대로 멈춰 주세요',
+      '좋아요! 지금 셔터를 눌러 주세요',
     );
   });
 }

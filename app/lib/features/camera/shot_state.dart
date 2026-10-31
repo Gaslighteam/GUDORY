@@ -131,3 +131,16 @@ class HandoverNotifier extends Notifier<HandoverState> {
   /// The owner takes the phone back (long press). Keeps the language.
   void stop() => state = HandoverState(lang: state.lang);
 }
+
+// ---- Front camera = plain camera (no coaching, no recommendation) ----
+
+final frontCameraProvider = NotifierProvider<FrontCameraNotifier, bool>(
+  FrontCameraNotifier.new,
+);
+
+class FrontCameraNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool front) => state = front;
+}
