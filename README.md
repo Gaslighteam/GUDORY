@@ -11,7 +11,7 @@ InThon 2026 · Theme "감각 (sense)" · Team Gaslighteam
 When you hand your phone to a friend or a stranger, the problem isn't their skill. They just don't share your sense of the shot. You get 30 seconds of their time, and a grid or a translucent overlay doesn't tell them what to fix first, or by how much.
 
 ## Solution
-GUDORY measures how far the live frame is from a target composition on four axes: level, distance, horizontal position and height. It then shows **only the biggest correction**, in words the body can act on: "두 걸음 뒤로 가 주세요" (take two steps back), "폰을 주먹 하나만큼 아래로 내려 주세요" (lower the phone by one fist). Beeps speed up as the frame gets closer. A ding and a vibration mark the moment it lines up, and the shot is taken automatically.
+GUDORY measures how far the live frame is from a target composition on four axes: level, distance, horizontal position and height. It then shows **only the biggest correction**, in words the body can act on: "두 걸음 뒤로 가 주세요" (take two steps back), "폰을 주먹 하나만큼 아래로 내려 주세요" (lower the phone by one fist). Beeps speed up as the frame gets closer. When it lines up, a ding, a vibration and a yellow ring around the shutter tell the photographer to press it. The photographer always takes the shot by hand.
 
 The target comes from one of two modes:
 - **추천 (recommend):** the app reads the background and borrows the composition of similar, well-shot photos of one person.
@@ -27,8 +27,9 @@ The target comes from one of two modes:
 3. **Real-time coaching without voice**
    - One instruction bubble with a direction arrow.
    - **Proximity beeps** that get faster as the error shrinks.
-   - A **ding and a vibration** when aligned, then **auto capture** after the alignment holds for 1 s. The shutter always works too.
+   - When aligned: a **ding, a vibration and a yellow shutter ring**, and the bubble says "좋아요! 지금 셔터를 눌러 주세요" (press the shutter now). There is no auto shutter: the photographer presses it.
    - Instructions use hysteresis and a minimum hold time, so they don't flicker.
+   - Coaching runs on the **back camera**, because someone else is taking the photo. The flip button switches to the front camera as a plain camera, with no coaching or recommendation.
 4. **Hand-over mode (✋)**
    - The owner picks the photographer's language: 한국어, English or 日本語.
    - The screen then shows only the bubble (larger text) and the shutter. Back is blocked, and a long-press on the lock exits.
@@ -64,7 +65,8 @@ flowchart LR
   REF["Reference photo"] --> RA -- "맞춤: TargetComposition" --> CE
   CE -- CoachInstruction --> UI
   CE --> FS
-  CE -- "aligned for 1 s" --> CAP
+  CE -- "aligned: yellow shutter ring" --> UI
+  UI -- "photographer presses the shutter" --> CAP
 ```
 
 Module contracts (`FrameBus`, `PoseSource`, `CoachEngine`, `ReferenceAnalyzer`, `Recommender`, `FeedbackService`) live in `app/lib/core/contracts.dart`. They are documented in [AGENTS.md](AGENTS.md) §4.
