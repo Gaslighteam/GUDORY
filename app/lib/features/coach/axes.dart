@@ -1,171 +1,133 @@
 import 'dart:math' as math;
 
 import '../../core/models.dart';
+import 'composition_math.dart';
 
-/// Measurements use the portrait coordinates supplied by PoseSource unchanged.
-/// Step 1's device validation is pending; sensor/coordinate signs stay upstream.
-class CompositionMetrics {
-  const CompositionMetrics({
-    required this.topOfHeadY,
-    required this.personHeightRatio,
-    required this.shoulderHipRatio,
-    required this.personCenterX,
-    required this.hipY,
-    required this.isFullBody,
-  });
-
-  final double topOfHeadY;
-  final double personHeightRatio;
-
-  /// Vertical distance from mean shoulder y to mean hip y / frame height.
-  final double shoulderHipRatio;
-  final double personCenterX;
-  final double hipY;
-  final bool isFullBody;
-}
+export 'composition_math.dart' show CompositionMetrics, measureComposition;
 
 class AxisErrors {
   AxisErrors({
     required Map<CoachAxis, double> errors,
     required this.currentRatio,
     required this.targetRatio,
-    required this.needsWholeBody,
-    required this.usesShoulderHipRatio,
+    required this.framing,
+    required this.orientation,
   }) : errors = Map.unmodifiable(errors);
 
   final Map<CoachAxis, double> errors;
   final double currentRatio;
   final double targetRatio;
-
-  /// When true, request full-body framing before using errors or amounts.
-  /// The distance error is still reported for debug, using the ankle estimate.
-  final bool needsWholeBody;
-  final bool usesShoulderHipRatio;
+  final Framing framing;
+  final ShotOrientation orientation;
 }
 
-/// null means there is no complete, finite 33-joint pose to measure.
-CompositionMetrics? measureComposition(PoseFrame frame) {
-  final points = frame.landmarks;
-  if (points == null || points.length != 33) return null;
-  // ML Kit PoseLandmarkType order: nose, shoulders, hips, ankles.
-  final nose = points[0];
-  final leftShoulder = points[11];
-  final rightShoulder = points[12];
-  final leftHip = points[23];
-  final rightHip = points[24];
-  final leftAnkle = points[27];
-  final rightAnkle = points[28];
-  for (final point in [
-    nose,
-    leftShoulder,
-    rightShoulder,
-    leftHip,
-    rightHip,
-    leftAnkle,
-    rightAnkle,
-  ]) {
-    if (!point.x.isFinite || !point.y.isFinite || !point.visibility.isFinite) {
-      return null;
-    }
-  }
-  final shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-  final hipY = (leftHip.y + rightHip.y) / 2;
-  final topY = nose.y - (shoulderY - nose.y) * 0.6;
-  final ankleY = (leftAnkle.y + rightAnkle.y) / 2;
-  return CompositionMetrics(
-    topOfHeadY: topY,
-    personHeightRatio: ankleY - topY,
-    shoulderHipRatio: hipY - shoulderY,
-    personCenterX:
-        (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4,
-    hipY: hipY,
-    isFullBody: leftAnkle.visibility >= 0.5 && rightAnkle.visibility >= 0.5,
-  );
-}
-
-/// Positive signs: roll as supplied, too close, person right, person low.
-/// These correspond to upright, stepBack, stepRight and phoneDown guidance.
-///
-/// Half-body metadata is coach-local because core's target has no such fields.
-/// A half-body target requires its measured shoulder-to-hip ratio. Compare that
-/// same metric even when the live ankles are visible, so visibility changes do
-/// not switch the distance error to a different physical length.
+/// Positive: portrait-relative Roll, person too close, right, or low.
+/// Spatial errors use shot-space shoulder x and eye-line y. PoseSource already
+/// applies orientation and front-camera mirroring; do not rotate again here.
 AxisErrors calculateAxisErrors(
   CompositionMetrics current,
   TargetComposition target, {
   required double rollDeg,
-  bool targetIsFullBody = true,
-  double? targetShoulderHipRatio,
 }) {
+  if (current.framing != target.framing) {
+    throw ArgumentError('Measure the live pose at target.framing first');
+  }
   _requirePositive(target.tolRollDeg, 'tolRollDeg');
   _requirePositive(target.tolHeight, 'tolHeight');
   _requirePositive(target.tolX, 'tolX');
   _requirePositive(target.tolY, 'tolY');
   _requireFinite(rollDeg, 'rollDeg');
   _requireFinite(current.personCenterX, 'current.personCenterX');
-  _requireFinite(current.hipY, 'current.hipY');
+  _requireFinite(current.personCenterY, 'current.personCenterY');
   _requireFinite(target.personCenterX, 'target.personCenterX');
   _requireFinite(target.personCenterY, 'target.personCenterY');
-
-  final useTorso = !targetIsFullBody;
-  if (useTorso && targetShoulderHipRatio == null) {
-    throw ArgumentError('Half-body targets require targetShoulderHipRatio');
-  }
-  final currentRatio = useTorso
-      ? current.shoulderHipRatio
-      : current.personHeightRatio;
-  final targetRatio = useTorso
-      ? targetShoulderHipRatio!
-      : target.personHeightRatio;
-  _requireFinite(currentRatio, 'currentRatio');
-  _requirePositive(targetRatio, 'targetRatio');
-
+  _requirePositive(current.personHeightRatio, 'currentRatio');
+  _requirePositive(target.personHeightRatio, 'targetRatio');
   return AxisErrors(
     errors: {
       CoachAxis.level: rollDeg / target.tolRollDeg,
-      CoachAxis.distance: (currentRatio - targetRatio) / target.tolHeight,
+      CoachAxis.distance:
+          (current.personHeightRatio - target.personHeightRatio) /
+          target.tolHeight,
       CoachAxis.horizontal:
           (current.personCenterX - target.personCenterX) / target.tolX,
-      CoachAxis.height: (current.hipY - target.personCenterY) / target.tolY,
+      CoachAxis.height:
+          (current.personCenterY - target.personCenterY) / target.tolY,
     },
-    currentRatio: currentRatio,
-    targetRatio: targetRatio,
-    needsWholeBody: targetIsFullBody && !current.isFullBody,
-    usesShoulderHipRatio: useTorso,
+    currentRatio: current.personHeightRatio,
+    targetRatio: target.personHeightRatio,
+    framing: target.framing,
+    orientation: current.orientation,
   );
 }
 
-final double _verticalSpan = 2 * math.tan(32.5 * math.pi / 180);
-final double _horizontalSpan = 2 * math.tan(25 * math.pi / 180);
+/// Camera field of view rotates with shot space, not the portrait-locked UI.
+double verticalFovDegrees(ShotOrientation orientation) =>
+    orientation == ShotOrientation.portrait ? 65 : 50;
+double horizontalFovDegrees(ShotOrientation orientation) =>
+    orientation == ShotOrientation.portrait ? 50 : 65;
 
-/// Specified 1.65 m calibration. For torso ratios this is a heuristic scale,
-/// not a calibrated physical distance to a full-height 1.65 m person.
-double estimateDistanceMeters(double ratio) {
+double _fovSpan(double degrees) => 2 * math.tan(degrees * math.pi / 360);
+
+double estimateDistanceMeters(
+  double ratio, {
+  Framing framing = Framing.fullBody,
+  ShotOrientation orientation = ShotOrientation.portrait,
+}) {
   _requirePositive(ratio, 'ratio');
-  return 1.65 / (ratio * _verticalSpan);
+  return realSpanMeters(framing) /
+      (ratio * _fovSpan(verticalFovDegrees(orientation)));
 }
 
-/// Nearest 0.5, with ties rounded up and minimum 0.5. Sign is carried by errors.
+/// Nearest 0.5, ties up, minimum 0.5; direction stays in the signed errors.
 double roundAmount(double amount) {
   _requireFinite(amount, 'amount');
   return math.max(0.5, (amount.abs() * 2).round() / 2);
 }
 
-double distanceSteps(double currentRatio, double targetRatio) => roundAmount(
-  (estimateDistanceMeters(currentRatio) - estimateDistanceMeters(targetRatio)) /
+/// Both ratios refer to the same framing and shot orientation. Orientation
+/// mismatch guidance is the engine's responsibility before movement coaching.
+double distanceSteps(
+  double currentRatio,
+  double targetRatio, {
+  Framing framing = Framing.fullBody,
+  ShotOrientation orientation = ShotOrientation.portrait,
+}) => roundAmount(
+  (estimateDistanceMeters(
+            currentRatio,
+            framing: framing,
+            orientation: orientation,
+          ) -
+          estimateDistanceMeters(
+            targetRatio,
+            framing: framing,
+            orientation: orientation,
+          )) /
       0.6,
 );
 
-double horizontalSteps(double deltaX, double distanceMeters) {
+double horizontalSteps(
+  double deltaX,
+  double distanceMeters, {
+  ShotOrientation orientation = ShotOrientation.portrait,
+}) {
   _requireFinite(deltaX, 'deltaX');
   _requirePositive(distanceMeters, 'distanceMeters');
-  return roundAmount(deltaX * distanceMeters * _horizontalSpan / 0.6);
+  return roundAmount(
+    deltaX * distanceMeters * _fovSpan(horizontalFovDegrees(orientation)) / 0.6,
+  );
 }
 
-double heightFists(double deltaY, double distanceMeters) {
+double heightFists(
+  double deltaY,
+  double distanceMeters, {
+  ShotOrientation orientation = ShotOrientation.portrait,
+}) {
   _requireFinite(deltaY, 'deltaY');
   _requirePositive(distanceMeters, 'distanceMeters');
-  return roundAmount(deltaY * distanceMeters * _verticalSpan / 0.1);
+  return roundAmount(
+    deltaY * distanceMeters * _fovSpan(verticalFovDegrees(orientation)) / 0.1,
+  );
 }
 
 void _requireFinite(double value, String name) {
