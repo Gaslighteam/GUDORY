@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/models.dart';
+import 'framing.dart';
 import 'shot_state.dart';
 
 final coachingProvider = NotifierProvider<CoachingNotifier, CoachInstruction?>(
@@ -24,9 +25,16 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
     final poseSource = ref.watch(poseSourceProvider);
     final engine = ref.watch(coachEngineProvider);
     if (poseSource != null && engine != null) {
+      // Coordinates are re-expressed in the visible (= saved) part of the
+      // frame, the same space as reference photos and category compositions.
       _poses = poseSource
           .poses(ref.watch(frameBusProvider))
-          .listen((frame) => state = engine.update(frame, _target()));
+          .listen(
+            (frame) => state = engine.update(
+              toVisible(frame, ref.read(visibleCropProvider)),
+              _target(),
+            ),
+          );
     }
     return null;
   }
