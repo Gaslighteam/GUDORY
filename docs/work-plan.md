@@ -13,7 +13,8 @@ Video, upload, README and the final push all have to fit in the 90 minutes after
 | Per-category good composition | **추천 모드**: CLIP background → nearest background clusters → their median composition at the chosen **5-step level** (인물 중심 1 ↔ 5 배경 중심) |
 | Reference = optional override | **맞춤 모드**: the active reference is the target; no reference → "레퍼런스를 추가해 주세요" |
 | Hashtags | **Removed** |
-| Team photos + `labels.csv` | **Unsplash Lite Dataset** (Pexels forbids ML collection). No label file; pose detection filters one person / full body |
+| Team photos + `labels.csv` | **Team + friends' phone photos** (Instagram-style) first; a supplementary dataset (Open Images or Unsplash) after a test. Pexels forbids ML collection. No label file; pose detection filters one person |
+| Full body only | **4 framings**: chest-up, waist-up, knee-up, full body. Position = shoulder midpoint x, eye line y. Camera angle not coached |
 | Portrait only | **Portrait and landscape** (accelerometer decides; UI stays portrait-locked) |
 
 Contracts and asset format: `AGENTS.md` §1, §4, §5, §6. Hand-off prompts: `prompts/pivot-*.md`.
