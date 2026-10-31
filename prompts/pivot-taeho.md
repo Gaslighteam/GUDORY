@@ -13,9 +13,9 @@ The team changed the product structure. `git pull` (or check out `docs/recommend
 - **Landscape shots**: UI stays portrait-locked; `PoseFrame.orientation` (from Eungyu's PoseSource) tells you how the phone is held.
 
 ## Step 1 — contracts (you own `core/`)
-- `models.dart`: add `ShootMode`, `ShotOrientation`, `Recommendation`; add `orientation` to `PoseFrame` and `TargetComposition` (default `portrait` so existing call sites compile); add `InstructionKey.turnLandscape`, `turnPortrait`, `addReference`; `source` doc → `'reference' | 'recommend:<1-5>' | 'fallback'`. Delete `CategoryGuess`, `CategoryInfo`.
+- `models.dart`: add `ShootMode`, `ShotOrientation`, `Framing`, `Recommendation`; add `orientation` to `PoseFrame` and `TargetComposition` (default `portrait`), `framing` to `TargetComposition` (default `fullBody`) so existing call sites compile; update the doc comments of `personHeightRatio` (span at the framing), `personCenterX` (shoulder midpoint x), `personCenterY` (eye line y); add `InstructionKey.turnLandscape`, `turnPortrait`, `addReference`; `source` doc → `'reference' | 'recommend:<1-5>' | 'fallback'`. Delete `CategoryGuess`, `CategoryInfo`.
 - `contracts.dart`: delete `SceneClassifier`, `CompositionLibrary`; add `Recommender` exactly as in AGENTS.md §4.
-- `pubspec.yaml` assets: drop `assets/categories.json`, add `assets/recommend.json`. Delete `app/assets/categories.json`. Until Seojun's file lands, commit a stub `recommend.json` with only `fallback` filled (levels 1–5 portrait h = 0.85/0.72/0.60/0.48/0.36, cx 0.5, cy 0.58; landscape h = 0.88/0.76/0.64/0.50/0.38, cx 0.5, cy 0.60) and empty `clusters`.
+- `pubspec.yaml` assets: drop `assets/categories.json`, add `assets/recommend.json`. Delete `app/assets/categories.json`. Until Seojun's file lands, commit a stub `recommend.json` with only `fallback` filled and empty `clusters` — levels 1–5 (both orientations): `chestUp` h 0.62 cy 0.33 / `waistUp` h 0.68 cy 0.30 / `kneeUp` h 0.72 cy 0.28 / `fullBody` h 0.70 cy 0.25 / `fullBody` h 0.40 cy 0.45, all cx 0.5.
 - `flutter analyze` must be clean. Merge to `main` fast and announce it — Eungyu and Seojun are blocked on this.
 
 ## Step 2 — state
@@ -37,4 +37,4 @@ The team changed the product structure. `git pull` (or check out `docs/recommend
 - `instruction_text.dart`: `turnLandscape` "폰을 가로로 돌려 주세요", `turnPortrait` "폰을 세로로 세워 주세요", `addReference` "레퍼런스 사진을 추가해 주세요".
 
 ## Done when
-Recommend ↔ custom toggle, the 5-step bar changes the instruction (e.g. level 1 → "한 걸음 앞으로"), custom with no reference shows the prompt, a landscape shot is saved as landscape. `flutter analyze` 0 warnings, `flutter build apk --debug` passes.
+Recommend ↔ custom toggle, the 5-step bar changes the instruction (e.g. level 1 chest-up → "한 걸음 앞으로"), custom with no reference shows the prompt, a landscape shot is saved as landscape. `flutter analyze` 0 warnings, `flutter build apk --debug` passes.

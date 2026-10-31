@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/models.dart';
+import 'framing.dart';
+import 'shot_orientation.dart';
 import 'shot_state.dart';
 
 final coachingProvider = NotifierProvider<CoachingNotifier, CoachInstruction?>(
@@ -61,7 +63,17 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
       _frames = bus.frames.listen((frame) => _lastFrame = frame);
       _poses = poseSource.poses(bus).listen((frame) {
         final target = _target(frame.orientation);
-        state = target == null ? _addReference : engine.update(frame, target);
+        if (target == null) {
+          state = _addReference;
+          return;
+        }
+        // Same space as the saved photo: the visible part of the frame,
+        // rotated like the photo when the phone is held sideways.
+        final crop = cropInShotSpace(
+          ref.read(visibleCropProvider),
+          ref.read(heldOrientationProvider).quarterTurns,
+        );
+        state = engine.update(toVisible(frame, crop), target);
       });
     }
     return _needsReference() ? _addReference : null;
@@ -99,6 +111,7 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
       return current;
     }
     return TargetComposition(
+      framing: TargetComposition.fallback.framing,
       personHeightRatio: TargetComposition.fallback.personHeightRatio,
       personCenterX: TargetComposition.fallback.personCenterX,
       personCenterY: TargetComposition.fallback.personCenterY,

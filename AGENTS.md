@@ -8,7 +8,7 @@
 - One line: a camera app that turns the owner's sense of a good shot into instructions a non-photographer can follow with ears, hands and feet ("one step back", "lower the phone by one fist"), delivered as voice, beeps and vibration, one at a time.
 - Contest theme keyword: **감각 (sense)**. Shown on the first screen: "사진 감각, 빌려드릴게요".
 - Two modes, switched with a button at the top left:
-  - **추천 모드 (recommend)**: the app looks at the background in the camera view, finds similar well-shot photos (Unsplash Lite, people) and uses their composition as the target. A **5-step bar** chooses 인물 중심 (1, person large) ↔ 배경 중심 (5, person small).
+  - **추천 모드 (recommend)**: the app looks at the background in the camera view, finds similar photos of one person (team and friends' phone photos, plus a supplementary dataset) and uses their composition as the target. A **5-step bar** chooses 인물 중심 (1, person large) ↔ 배경 중심 (5, person small).
   - **맞춤 모드 (custom)**: the active **reference photo** (the user may load several; they persist until reset) is the target. With no reference, coaching pauses and the bubble asks for one.
 - **Portrait and landscape** shots are both supported. The UI stays portrait-locked; the phone's physical orientation (accelerometer) decides the shot orientation.
 - No categories and no hashtags (removed 2026-10-31 by team decision).
@@ -29,7 +29,7 @@ app/lib/features/coach/                    Eungyu
 app/lib/features/scene/                    Seojun
 app/assets/                                recommend.json (tools output) / *.onnx (gitignored)
 tools/                                     Seojun (unsplash_candidates.py: Bomin)
-data/                                      Bomin (photos/ and unsplash/ gitignored, nothing but README committed)
+data/                                      Bomin (photos/, unsplash/, openimages/ gitignored, nothing but README committed)
 api/                                       Taeho
 ```
 - **Never edit outside your own folder.** If you need something there, write a "request for the lead" and stop.
@@ -58,6 +58,7 @@ enum InstructionKey {
 }
 enum ShootMode { recommend, custom }
 enum ShotOrientation { portrait, landscape }
+enum Framing { chestUp, waistUp, kneeUp, fullBody } // lowest visible anchor: shoulders / hips / knees / ankles
 class Landmark { final double x, y, visibility; }          // 0~1, shot space (see below)
 class PoseFrame {
   final List<Landmark>? landmarks;   // 33 points in ML Kit PoseLandmarkType order, null = no person
@@ -67,9 +68,10 @@ class PoseFrame {
   final DateTime at;
 }
 class TargetComposition {
-  final double personHeightRatio; // (top of head ~ ankles) / frame height, 0~1
-  final double personCenterX;     // center x of shoulders+hips, 0~1
-  final double personCenterY;     // hip center y, 0~1
+  final Framing framing;
+  final double personHeightRatio; // (head top ~ framing anchor) / frame height, 0~1 (see the table below)
+  final double personCenterX;     // shoulder midpoint x, 0~1
+  final double personCenterY;     // eye line y (mean of both eyes), 0~1
   final double? horizonY;         // optional
   final ShotOrientation orientation;
   final double tolHeight, tolX, tolY; // defaults 0.10, 0.08, 0.08
@@ -107,7 +109,17 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 ```
 - `PoseFrame.landmarks` are 0~1 values **already rotated into shot space**: the frame as the saved photo will look (portrait, or landscape when the phone is held sideways). PoseSource (Eungyu) does the rotation using `orientation`.
 - Shot orientation (Eungyu, in PoseSource): |accelerometer roll| > 60° → landscape, < 45° → portrait. In landscape, `rollDeg` is measured from ±90°.
-- `amount` conversion (Eungyu): distance d(m) ≈ 1.65 / (personHeightRatio × 2·tan(fov/2)), fov = 65° vertical in portrait, 50° in landscape; one step = 0.6 m; one fist = 0.1 m; round to 0.5.
+- Framing and body span (Eungyu and Seojun use **the same formulas**; head top = nose y − 1.0 × (shoulder-mid y − nose y) / 2, written once in `features/coach/composition_math.dart` and ported to Python):
+
+  | Framing | Anchor (lowest visible, visibility ≥ 0.5) | Span | Real span L |
+  |---|---|---|---|
+  | `chestUp` | shoulders | head top ~ shoulder mid | 0.28 m |
+  | `waistUp` | hips | head top ~ hip mid | 0.80 m |
+  | `kneeUp` | knees | head top ~ knee mid | 1.15 m |
+  | `fullBody` | ankles | head top ~ ankle mid | 1.55 m |
+- Live frames are measured **at the target's framing**: if the target anchor is not visible (e.g. target `fullBody`, ankles cut off), estimate it from the visible landmarks with the real-span ratios above, so the distance axis says "step back". `fitWholeBody` is no longer needed for that case.
+- `amount` conversion (Eungyu): distance d(m) ≈ L / (personHeightRatio × 2·tan(fov/2)), fov = 65° vertical in portrait, 50° in landscape; one step = 0.6 m; one fist = 0.1 m; round to 0.5.
+- Camera angle (high / low) is **not** coached (cannot be learned from photos); the height axis covers raising or lowering the phone.
 - Instruction order: **orientation** (target ≠ frame → `turnLandscape`/`turnPortrait`) → level → distance → horizontal → height. Enter when |error| > 1.0, exit when < 0.8, hold at least 1.5 s. `aligned` when all four ≤ 1.0.
 - Directions stay body-relative to the photographer in both orientations ("왼쪽으로 한 걸음", "폰을 아래로").
 
@@ -119,26 +131,30 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 - `recommend.json` (built by `tools/build_assets.py`):
   ```json
   { "model": "clip-vit-base-patch32", "dim": 512, "quant": "int8",
-    "levels":   { "portrait": [0.78, 0.66, 0.52, 0.38], "landscape": [0.80, 0.68, 0.55, 0.40] },
-    "fallback": { "portrait": { "1": {"h":0.85,"cx":0.5,"cy":0.55,"hy":null}, "...": {} }, "landscape": { } },
+    "levels":   { "portrait": [0.30, 0.17, 0.10, 0.06], "landscape": [0.32, 0.18, 0.11, 0.07] },
+    "fallback": { "portrait": { "1": {"f":"chestUp","h":0.62,"cx":0.5,"cy":0.33,"hy":null}, "...": {} }, "landscape": { } },
     "clusters": [ { "o":"p", "e":"<base64 int8 x512>", "n":41,
-                    "lv": { "1": {"h":0.84,"cx":0.5,"cy":0.55,"hy":null,"n":8}, "2": {}, "3": {}, "4": {}, "5": {} } } ] }
+                    "lv": { "1": {"f":"waistUp","h":0.70,"cx":0.5,"cy":0.30,"hy":null,"n":8}, "2": {}, "3": {}, "4": {}, "5": {} } } ] }
   ```
-  - `levels`: personHeightRatio edges per orientation (quintiles, descending). Level 1 = person largest (인물 중심), 5 = smallest (배경 중심).
-  - `fallback`: median composition per orientation × level (used when CLIP is unavailable).
-  - `clusters`: k-means (k ≈ 64 per orientation) over background embeddings of one-person, full-body photos. `e` = L2-normalized cluster centre, int8 (value × 127). `lv` = median composition of that cluster's photos per level (missing when a level has < 3 photos).
-  - **No per-photo data** (no photo ids, no per-photo embeddings or numbers) goes into the app or the repo: the Unsplash Dataset Terms forbid publishing any portion of the data. Only aggregated clusters and medians.
+  - **Person scale** s = (head top ~ shoulder mid) / frame height — measurable in every framing. `levels` = quintile edges of s per orientation (descending). Level 1 = person largest (인물 중심, mostly `chestUp`/`waistUp`), 5 = smallest (배경 중심, mostly `fullBody`).
+  - `f` = the most common framing of those photos; `h` = median span **at that framing**, `cx`/`cy`/`hy` = medians.
+  - `fallback`: per orientation × level, over all photos (used when CLIP is unavailable).
+  - `clusters`: k-means (k ≈ 64 per orientation) over background embeddings of one-person photos (any framing). `e` = L2-normalized cluster centre, int8 (value × 127). `lv` per level (missing when a level has < 3 photos).
+  - **No per-photo data** (no photo ids, no per-photo embeddings or numbers) goes into the app or the repo: dataset terms forbid publishing any portion of the data, and team/friends' photos are private. Only aggregated clusters and medians.
 
 ## 5. CLIP and recommendation (Seojun)
 - Preprocessing: resize short side to 224 → center crop 224×224 → RGB/255 → mean [0.48145466,0.4578275,0.40821073], std [0.26862954,0.26130258,0.27577711] → `pixel_values [1,3,224,224] float32` → `image_embeds [1,512]` → L2 normalize. Same in `tools/` and the app.
 - Fill person-mask pixels with the image mean color before running CLIP (we compare **backgrounds**).
-- Recommend: live background embedding → cosine with clusters of the same orientation → top 3 clusters that have the chosen level (else the nearest level) → average of their `lv` medians weighted by cosine × n → `TargetComposition(source: 'recommend:<level>')`. CLIP failure → `fallback`.
+- Recommend: live background embedding → cosine with clusters of the same orientation → top 3 clusters that have the chosen level (else the nearest level) → framing = the top cluster's `f`; average the `lv` medians of clusters with that framing, weighted by cosine × n → `TargetComposition(source: 'recommend:<level>')`. CLIP failure → `fallback`.
 - Model files: bundled `assets/clip/vision_q8.onnx` (copied once to the app directory), downloaded `<appDir>/models/vision_big.onnx`. Same inputs/outputs.
 
 ### Training data
-- **Unsplash Lite Dataset 1.4.0** (~25k photos). Its terms (`data/unsplash/raw/TERMS.md`) allow storing the photos and using them to train models; they forbid publishing or redistributing any portion of the data. So: raw files, photos, candidate lists and per-photo numbers stay on the PC; only the aggregated `recommend.json` ships. Credit it in README.
+- Goal: everyday / travel photos **as people post on Instagram** (taken by a friend with a phone), any framing from chest-up to full body.
+- **Primary: `data/photos/team/`** — photos taken by team members, and by friends who gave permission (Bomin collects). These match the target style best.
+- **Supplementary (to be decided by Bomin after a test):** Open Images V7 (Flickr, CC BY 2.0) one-person photos ranked by CLIP for "phone snapshot" style, or Unsplash Lite (too many studio portraits; only ~100 phone shots). Whatever is used: raw files, photos and per-photo numbers stay on the PC; only the aggregated `recommend.json` ships; credit it in README.
+- `build_assets.py` should weight team photos above supplementary ones.
 - **Pexels is not allowed**: its terms forbid automated collection for machine-learning purposes.
-- `tools/unsplash_candidates.py` picks one-person photos by keyword and downloads them to `data/photos/unsplash/`; `build_assets.py` keeps only one-person full-body photos (pose) and builds `recommend.json`. Team photos may be added in `data/photos/team/`.
+- `build_assets.py` keeps one-person photos whose head and shoulders are visible (pose), classifies the framing, and builds `recommend.json`.
 
 ## 6. UX rules (from the UI mock)
 - Camera screen (matches the mock): **mode toggle `추천 | 맞춤` at the top left**, X right of the toggle (reset references, custom mode only, shown when references exist) and flash at the top right, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.6 / 1x / 2 / 3` (only supported levels) that opens a **continuous slider** when dragged sideways, pinch zoom, bottom row = **reference slot** · shutter · flip.
@@ -155,10 +171,10 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 ## 7. Security and data
 - Lablup key and Vercel tokens never go into the app or the repo. LLM calls only from `api/`, env vars `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - Photos never leave the phone (the LLM receives only instruction templates as text).
-- `data/photos/`, `data/unsplash/`, `app/assets/clip/*.onnx`, `*.keystore`, `.env*` are never committed (.gitignore).
+- `data/photos/`, `data/unsplash/`, `data/openimages/`, `app/assets/clip/*.onnx`, `*.keystore`, `.env*` are never committed (.gitignore).
 
 ## 8. Git
-- Branches `feat/camera` `feat/coach` `feat/scene` `feat/tools` `data/unsplash`. main only via PR; the lead merges (19:30 / 22:00 / 01:00 / 03:00 / 05:30 / 08:00 / 10:30 / 11:00). **Development ends Sunday 11:00**; after that only critical bug fixes.
+- Branches `feat/camera` `feat/coach` `feat/scene` `feat/tools` `data/photos`. main only via PR; the lead merges (19:30 / 22:00 / 01:00 / 03:00 / 05:30 / 08:00 / 10:30 / 11:00). **Development ends Sunday 11:00**; after that only critical bug fixes.
 - Commits `feat(coach): ...` / `fix(scene): ...` / `data: ...` / `docs: ...`. Small and often.
 - Before a PR: `cd app && flutter analyze && flutter build apk --debug` must pass.
 - **No commits or pushes after Sunday 12:30.** Do not paste code written before the contest.
