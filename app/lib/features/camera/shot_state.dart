@@ -107,29 +107,17 @@ class ModeNotifier extends Notifier<ModeState> {
       state = ModeState(mode: state.mode, level: level.clamp(1, 5));
 }
 
-// ---- Hand-over mode (the phone is with the photographer) ----
+// ---- Instruction language ('ko' / 'en' / 'ja') ----
 
-class HandoverState {
-  const HandoverState({this.active = false, this.lang = 'ko'});
-
-  final bool active;
-
-  /// Photographer's language: 'ko' / 'en' / 'ja'.
-  final String lang;
-}
-
-final handoverProvider = NotifierProvider<HandoverNotifier, HandoverState>(
-  HandoverNotifier.new,
+final languageProvider = NotifierProvider<LanguageNotifier, String>(
+  LanguageNotifier.new,
 );
 
-class HandoverNotifier extends Notifier<HandoverState> {
+class LanguageNotifier extends Notifier<String> {
   @override
-  HandoverState build() => const HandoverState();
+  String build() => 'ko';
 
-  void start(String lang) => state = HandoverState(active: true, lang: lang);
-
-  /// The owner takes the phone back (long press). Keeps the language.
-  void stop() => state = HandoverState(lang: state.lang);
+  void set(String lang) => state = lang;
 }
 
 // ---- Front camera = plain camera (no coaching, no recommendation) ----

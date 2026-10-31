@@ -4,8 +4,8 @@ import '../../core/models.dart';
 
 enum ArrowDirection { none, left, right, up, down, back, forward }
 
-/// Languages a photographer can pick when the phone is handed over.
-const photographerLanguages = {'ko': '한국어', 'en': 'English', 'ja': '日本語'};
+/// Languages for the on-screen instructions.
+const instructionLanguages = {'ko': '한국어', 'en': 'English', 'ja': '日本語'};
 
 abstract final class InstructionText {
   /// Sentence for [key] with [amount] (steps or fists, 0.5 units).
@@ -15,21 +15,6 @@ abstract final class InstructionText {
         'ja' => _ja(key, amount),
         _ => _ko(key, amount),
       };
-
-  /// Shown when the phone is handed over, before the first instruction.
-  static String handoverGuide(String lang) => switch (lang) {
-    'en' =>
-      'Just follow the text on screen.\nPress the shutter when it lines up.',
-    'ja' => '画面の文字に従ってください。\n合ったらシャッターを押してください。',
-    _ => '화면 글자만 따라 해 주세요.\n맞으면 셔터를 눌러 주세요',
-  };
-
-  /// Shown to the photographer after a shot in hand-over mode.
-  static String handoverDone(String lang) => switch (lang) {
-    'en' => 'Done! Please hand the phone back.',
-    'ja' => '撮れました！持ち主に返してください。',
-    _ => '다 찍었어요! 주인에게 돌려주세요',
-  };
 
   static ArrowDirection arrowOf(InstructionKey key) => switch (key) {
     InstructionKey.stepBack => ArrowDirection.back,
