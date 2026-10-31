@@ -44,8 +44,13 @@ class HeldOrientation {
 /// left** (counter-clockwise), − = to the right. ±90 = held sideways.
 double accelRollDeg(double ax, double ay) => math.atan2(ax, ay) * 180 / math.pi;
 
+/// False while the phone lies flat: roll is meaningless then.
+/// Use for `PoseFrame.rollReliable`.
+bool isRollReliable(double ax, double ay) =>
+    math.sqrt(ax * ax + ay * ay) >= flatGuard;
+
 /// True when the phone is too flat for a reliable roll.
-bool isFlat(double ax, double ay) => math.sqrt(ax * ax + ay * ay) < flatGuard;
+bool isFlat(double ax, double ay) => !isRollReliable(ax, ay);
 
 /// Next orientation with 60° / 45° hysteresis. Returns [current] unchanged
 /// while the phone is flat or inside the hysteresis band.

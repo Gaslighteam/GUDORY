@@ -51,4 +51,10 @@ void main() {
     expect(levelRollDeg(-88, right), closeTo(2, 1e-9));
     expect(levelRollDeg(3, HeldOrientation.portrait), 3);
   });
+
+  test('roll is unreliable only below the flat guard', () {
+    expect(isRollReliable(0.5, 0.3), isFalse);
+    expect(isRollReliable(0, 9.81), isTrue);
+    expect(isRollReliable(3, 3), isTrue); // 4.24 m/s²
+  });
 }

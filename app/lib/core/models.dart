@@ -51,6 +51,7 @@ class PoseFrame {
     this.orientation = ShotOrientation.portrait,
     required this.rollDeg,
     required this.pitchDeg,
+    this.rollReliable = true,
     required this.at,
   });
 
@@ -67,6 +68,11 @@ class PoseFrame {
   /// Sensors, relative to the shot orientation; level = 0, 0.
   final double rollDeg;
   final double pitchDeg;
+
+  /// False while the phone lies flat (core/orientation.dart flat guard):
+  /// [rollDeg] is then the last reliable value and the level axis must be
+  /// skipped.
+  final bool rollReliable;
   final DateTime at;
 }
 
