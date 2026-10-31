@@ -56,7 +56,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private companion object {
-        /** A little under the stock camera's full-volume click. */
-        const val VOLUME = 0.6f
+        /** Well under the stock camera's full-volume click (team request). */
+        const val VOLUME = 0.18f
     }
 }
