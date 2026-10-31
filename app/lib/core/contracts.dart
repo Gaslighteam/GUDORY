@@ -51,7 +51,6 @@ abstract class ModelManager {
 
 /// Taeho.
 abstract class FeedbackService {
-  void announce(CoachInstruction instruction, String lang);
   void proximity(double error);
   void aligned();
   void stop();

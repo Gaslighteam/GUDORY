@@ -5,7 +5,7 @@
 > Work one step at a time and report what you verified on a real device after each step.
 
 ## 1. Product
-- One line: a camera app that turns the owner's sense of a good shot into instructions a non-photographer can follow with ears, hands and feet ("one step back", "lower the phone by one fist"), delivered as voice, beeps and vibration, one at a time.
+- One line: a camera app that turns the owner's sense of a good shot into instructions a non-photographer can follow with eyes, ears, hands and feet ("one step back", "lower the phone by one fist"), delivered as one on-screen sentence at a time plus proximity beeps and vibration. **No voice guidance** (removed by team decision).
 - Contest theme keyword: **감각 (sense)**. Shown on the first screen: "사진 감각, 빌려드릴게요".
 - Two modes, switched with a button at the top left:
   - **추천 모드 (recommend)**: the app looks at the background in the camera view, finds similar photos of one person (team and friends' phone photos, plus a supplementary dataset) and uses their composition as the target. A **5-step bar** chooses 인물 중심 (1, person large) ↔ 배경 중심 (5, person small).
@@ -16,7 +16,7 @@
 
 ## 2. Stack (pinned)
 - Flutter **3.44.8** stable / Dart 3.12. Android only. minSdk 24.
-- Packages (already in pubspec; **only the lead adds packages**): `flutter_riverpod`, `go_router`, `camera`, `google_mlkit_pose_detection`, `google_mlkit_selfie_segmentation`, `onnxruntime`, `image`, `sensors_plus`, `vibration`, `flutter_tts`, `audioplayers`, `image_picker`, `gal`, `sqflite`, `path_provider`, `http`, `wakelock_plus`, `connectivity_plus`
+- Packages (already in pubspec; **only the lead adds packages**): `flutter_riverpod`, `go_router`, `camera`, `google_mlkit_pose_detection`, `google_mlkit_selfie_segmentation`, `onnxruntime`, `image`, `sensors_plus`, `vibration`, `audioplayers`, `image_picker`, `gal`, `sqflite`, `path_provider`, `http`, `wakelock_plus`, `connectivity_plus`
 - AI: ML Kit Pose (real time), ML Kit Selfie Segmentation (person mask), CLIP ViT-B/32 vision encoder ONNX (q8 bundled, bigger model downloaded when online), LLM only on the server (`api/`).
 - Python tools (`tools/`): Python 3.12 via uv, transformers, mediapipe.
 
@@ -107,7 +107,7 @@ abstract class Recommender {                                                    
   Future<Recommendation> recommend(CameraFrame f, int level, ShotOrientation o);   // level 1~5. Never throws: falls back to the level median
 }
 abstract class ModelManager { Future<String> ensureBest(); String get activeVariant; Stream<double> get downloadProgress; } // Seojun
-abstract class FeedbackService { void announce(CoachInstruction i, String lang); void proximity(double error); void aligned(); void stop(); } // Taeho
+abstract class FeedbackService { void proximity(double error); void aligned(); void stop(); } // Taeho
 ```
 - `PoseFrame.landmarks` are 0~1 values **already rotated into shot space**: the frame as the saved photo will look (portrait, or landscape when the phone is held sideways). PoseSource (Eungyu) does the rotation using `orientation`.
 - Shot space = the part of the camera frame **visible in the preview** (`visibleCropProvider` in `features/camera/framing.dart`); the saved photo is exactly that crop. **Who does what:** PoseSource emits landmarks 0~1 over the **whole analysis frame**, rotated to the shot orientation — it does **not** crop. `coaching.dart` maps them into the visible crop (`toVisible(frame, cropInShotSpace(...))`) right before `CoachEngine.update`, so the engine sees 0~1 inside the saved photo. Do not crop twice.
@@ -173,7 +173,7 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 - References: tap the bottom-left slot to pick **one or more** photos (portrait or landscape). The active one (yellow border) is the target; with several, a sheet lets the user switch, add, remove or clear. **References persist across shots** and are removed only by X / "모두 지우기".
 - **No result screen.** After a shot the photo is saved to the GUDORY album and a short toast confirms it.
 - Auto shutter: when `aligned` holds for 1.0 s → vibrate + capture. The shutter button always works.
-- **Hand-over mode** (✋ button left of the flash): the owner picks the photographer's language (한국어 / English / 日本語); the screen then shows only the instruction bubble (larger text), the shutter and a top-left lock pill (**long-press to exit**). Mode toggle, X, level bar, reference slot, zoom and flip are hidden, and the system back gesture is blocked. A guide line is shown/spoken on entry; after a shot "다 찍었어요! 주인에게 돌려주세요" in that language. Instructions and voice use `InstructionText.of(key, amount, lang)` with `lang` = 'ko' | 'en' | 'ja'.
+- **Hand-over mode** (✋ button left of the flash): the owner picks the photographer's language (한국어 / English / 日本語); the screen then shows only the instruction bubble (larger text), the shutter and a top-left lock pill (**long-press to exit**). Mode toggle, X, level bar, reference slot, zoom and flip are hidden, and the system back gesture is blocked. A guide line is shown on entry; after a shot "다 찍었어요! 주인에게 돌려주세요" in that language. Instructions use `InstructionText.of(key, amount, lang)` with `lang` = 'ko' | 'en' | 'ja'.
 - No empty buttons or "coming soon" screens; drop what does not work. UI text in Korean, no photography jargon ("틸트" → "폰 윗부분을 앞으로").
 - Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, bottom bar (5-step bar) `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.
 
