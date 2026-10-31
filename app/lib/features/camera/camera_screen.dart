@@ -413,7 +413,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                       : const SizedBox(width: 60),
                   quarterTurns: turns,
                   onShutter: camera.isReady ? _capture : null,
-                  onFlip: camera.canFlip && !handedOver ? camera.flip : null,
+                  // Front camera is hidden for the submission: coaching runs in mirrored
+                  // preview space while the saved selfie is unmirrored, and
+                  // photographer-relative wording reads oddly for a selfie.
+                  onFlip: null,
                   armed: instruction?.aligned ?? false,
                   busy: _capturing,
                 ),
