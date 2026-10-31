@@ -137,7 +137,7 @@ class SettingsScreen extends ConsumerWidget {
               const _Info(title: '만든 팀', value: 'Gaslighteam · InThon 2026'),
               _Link(
                 icon: Icons.description_outlined,
-                title: '오픈소스 라이선스',
+                title: '오픈소스 · 데이터 라이선스',
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'GUDORY',

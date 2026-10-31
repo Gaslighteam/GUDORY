@@ -15,9 +15,10 @@ const minHeadRoom = 0.04; // head top to the top edge, 0~1
 const maxHeadRoom = 0.15;
 const jointMargin = 0.03; // bottom edge this close to a joint = a cut
 const facingThreshold = 0.35; // nose offset from the ears / shoulder width
-// Smallest lead-room offset from the centre when the person faces sideways
-// (v1/fallback targets sit near the centre; v2 learns its own offset).
-const minLeadOffset = 0.10;
+// Smallest lead-room offset from the centre when the person faces sideways:
+// at least the third line (1/2 - 1/3). v2's learned offset (~0.1) moved a
+// profile only slightly; a larger learned offset is kept.
+const minLeadOffset = 1 / 6;
 
 /// Returns [t] adjusted by the rules, using the live body proportions.
 /// Returns [t] unchanged when the pose cannot be measured.
