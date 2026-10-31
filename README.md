@@ -29,11 +29,10 @@ The target comes from one of two modes:
    - **Proximity beeps** that get faster as the error shrinks.
    - When aligned: a **ding, a vibration and a yellow shutter ring**, and the bubble says "좋아요! 지금 셔터를 눌러 주세요" (press the shutter now). There is no auto shutter: the photographer presses it.
    - Instructions use hysteresis and a minimum hold time, so they don't flicker.
-   - Coaching runs on the **back camera**, because someone else is taking the photo. The flip button switches to the front camera as a plain camera, with no coaching or recommendation.
-4. **Hand-over mode (✋)**
-   - The owner picks the photographer's language: 한국어, English or 日本語.
-   - The screen then shows only the bubble (larger text) and the shutter. Back is blocked, and a long-press on the lock exits.
-   - After the shot it says "Done! Please hand the phone back."
+   - Coaching runs on the **back camera**, because someone else is taking the photo. The flip button switches to the front camera as a plain camera, with no coaching or recommendation (flash, zoom, `?` and language stay).
+4. **Instruction language and how-to (top right: `?` · language · flash)**
+   - The language button (`KO` / `EN` / `JA`) switches the on-screen instructions to 한국어, English or 日本語. Use it when you ask a foreigner to take the photo.
+   - `?` opens a short how-to. It also opens automatically on the first launch.
 5. **Portrait and landscape:** the accelerometer decides how the phone is held, and the icons and bubble rotate in place. If the target's orientation differs, the first instruction is "폰을 가로로 돌려 주세요" (turn the phone sideways).
 6. **WYSIWYG saving:** the photo is taken at full sensor resolution and cropped to exactly what the preview showed. Landscape shots are rotated on save. Photos go to the GUDORY album, with no result screen in between.
 
@@ -43,7 +42,7 @@ flowchart LR
   subgraph Camera["features/camera (Taeho)"]
     FB["FrameBus<br/>NV21 analysis stream"]
     CO["coaching.dart<br/>map to visible crop"]
-    UI["Camera screen<br/>bubble, 5-step bar, references"]
+    UI["Camera screen<br/>bubble (KO/EN/JA), 5-step bar, references"]
     CAP["Capture<br/>full-res, WYSIWYG crop, album"]
   end
   subgraph Coach["features/coach (Eungyu)"]
@@ -114,7 +113,7 @@ Without the model file the app still runs, but 추천 mode falls back to the lev
 ## Team
 | Name | Role |
 |---|---|
-| Kim Taeho | Lead · camera screen, capture, feedback, hand-over mode · integration and release |
+| Kim Taeho | Lead · camera screen, capture, feedback, instruction languages · integration and release |
 | Seojun | 추천 mode: CLIP recommender on device · data pipeline (`tools/`) |
 | Han Eungyu | Coaching engine · pose source · reference analyzer · presenter |
 | Kim Bomin | Training data · data rules and docs · slides · QA |
