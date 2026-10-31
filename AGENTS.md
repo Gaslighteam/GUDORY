@@ -108,7 +108,7 @@ abstract class ModelManager { Future<String> ensureBest(); String get activeVari
 abstract class FeedbackService { void announce(CoachInstruction i, String lang); void proximity(double error); void aligned(); void stop(); } // Taeho
 ```
 - `PoseFrame.landmarks` are 0~1 values **already rotated into shot space**: the frame as the saved photo will look (portrait, or landscape when the phone is held sideways). PoseSource (Eungyu) does the rotation using `orientation`.
-- Shot orientation (Eungyu, in PoseSource): |accelerometer roll| > 60° → landscape, < 45° → portrait. In landscape, `rollDeg` is measured from ±90°.
+- Shot orientation: **use `core/orientation.dart`** (shared by PoseSource and the UI): `nextHeldOrientation(current, ax, ay)` (|roll| > 60° → landscape, < 45° → portrait, flat guard), `accelRollDeg(ax, ay)` (+ = top tilted left), `levelRollDeg(roll, held)` (landscape measured from ±90° → `PoseFrame.rollDeg`). `HeldOrientation.quarterTurns`: 1 = top to the left, -1 = top to the right.
 - Framing and body span (Eungyu and Seojun use **the same formulas**; head top = nose y − 1.0 × (shoulder-mid y − nose y) / 2, written once in `features/coach/composition_math.dart` and ported to Python):
 
   | Framing | Anchor (lowest visible, visibility ≥ 0.5) | Span | Real span L |
