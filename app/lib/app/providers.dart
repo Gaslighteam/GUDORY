@@ -6,19 +6,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/contracts.dart';
 import '../features/camera/camera_service.dart';
 import '../features/camera/fakes/fake_recommender.dart';
-import '../features/camera/fakes/fake_reference_analyzer.dart';
 import '../features/coach/coach_engine.dart';
 import '../features/coach/pose_source.dart';
+import '../features/coach/reference_analyzer.dart';
 
 /// Live camera frames for pose (Eungyu) and scene (Seojun) analysis.
 final frameBusProvider = Provider<FrameBus>(
   (ref) => ref.watch(cameraServiceProvider),
 );
 
-/// TODO(lead): switch to Eungyu's ReferenceAnalyzer when feat/coach lands.
-final referenceAnalyzerProvider = Provider<ReferenceAnalyzer>(
-  (ref) => FakeReferenceAnalyzer(),
-);
+/// Eungyu's ML Kit analysis of a picked reference photo (EXIF-corrected).
+final referenceAnalyzerProvider = Provider<ReferenceAnalyzer>((ref) {
+  final analyzer = MlKitReferenceAnalyzer();
+  ref.onDispose(analyzer.dispose);
+  return analyzer;
+});
 
 /// Eungyu's ML Kit pose + sensors. One stream per instance, so the debug
 /// pose page makes its own.
