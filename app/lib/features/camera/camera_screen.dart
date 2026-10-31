@@ -208,6 +208,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     });
   }
 
+  /// Portrait aspect (w/h) of the camera frame; 3:4 until the camera is ready.
+  double _frameAspect(CameraService camera) {
+    final preview = camera.controller?.value.previewSize;
+    return preview == null ? 3 / 4 : preview.height / preview.width;
+  }
+
   /// Tracks which part of the camera frame the cover-fit preview shows.
   void _publishVisibleCrop(Size area, CameraService camera) {
     final preview = camera.controller?.value.previewSize;
@@ -242,7 +248,49 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         listenable: camera,
         builder: (context, _) => Column(
           children: [
-            Expanded(
+            // Top bar sits above the 3:4 preview (Samsung-style).
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Row(
+                  children: [
+                    if (!front)
+                      ModeToggle(
+                        mode: mode.mode,
+                        onChanged: _setMode,
+                        quarterTurns: turns,
+                      ),
+                    if (!front && custom && !reference.isEmpty) ...[
+                      const SizedBox(width: 10),
+                      RoundIconButton(
+                        icon: Icons.close,
+                        onPressed: _resetReferences,
+                        size: _topButton,
+                        tooltip: '레퍼런스 초기화',
+                        quarterTurns: turns,
+                      ),
+                    ],
+                    const Spacer(),
+                    RoundIconButton(
+                      icon: switch (camera.flashMode) {
+                        FlashMode.auto => Icons.flash_auto,
+                        FlashMode.always => Icons.flash_on,
+                        _ => Icons.flash_off,
+                      },
+                      onPressed: camera.isReady ? camera.cycleFlash : null,
+                      size: _topButton,
+                      tooltip: '플래시',
+                      quarterTurns: turns,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // The preview has the still's own aspect (3:4), so what you see is
+            // the whole photo: nothing is cropped when saving.
+            AspectRatio(
+              aspectRatio: _frameAspect(camera),
               child: LayoutBuilder(
                 builder: (context, area) {
                   _publishVisibleCrop(area.biggest, camera);
@@ -280,53 +328,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                             ),
                           ),
                         ),
-                      // Pinned to the top: inside an expanded Stack an unpositioned
-                      // Row would stretch and center its buttons vertically.
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: SafeArea(
-                          bottom: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                            child: Row(
-                              children: [
-                                if (!front)
-                                  ModeToggle(
-                                    mode: mode.mode,
-                                    onChanged: _setMode,
-                                    quarterTurns: turns,
-                                  ),
-                                if (!front && custom && !reference.isEmpty) ...[
-                                  const SizedBox(width: 10),
-                                  RoundIconButton(
-                                    icon: Icons.close,
-                                    onPressed: _resetReferences,
-                                    size: _topButton,
-                                    tooltip: '레퍼런스 초기화',
-                                    quarterTurns: turns,
-                                  ),
-                                ],
-                                const Spacer(),
-                                RoundIconButton(
-                                  icon: switch (camera.flashMode) {
-                                    FlashMode.auto => Icons.flash_auto,
-                                    FlashMode.always => Icons.flash_on,
-                                    _ => Icons.flash_off,
-                                  },
-                                  onPressed: camera.isReady
-                                      ? camera.cycleFlash
-                                      : null,
-                                  size: _topButton,
-                                  tooltip: '플래시',
-                                  quarterTurns: turns,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
                       if (_toastText != null)
                         SafeArea(
                           child: Align(
@@ -395,17 +396,24 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                 },
               ),
             ),
-            SafeArea(
-              top: false,
-              child: BottomBar(
-                reference: custom && !front
-                    ? ReferenceThumb(state: reference, onTap: _onReferenceTap)
-                    : LastShotThumb(path: _lastShotPath),
-                quarterTurns: turns,
-                onShutter: camera.isReady ? _capture : null,
-                onFlip: camera.canFlip ? _flip : null,
-                armed: instruction?.aligned ?? false,
-                busy: _capturing,
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  child: BottomBar(
+                    reference: custom && !front
+                        ? ReferenceThumb(
+                            state: reference,
+                            onTap: _onReferenceTap,
+                          )
+                        : LastShotThumb(path: _lastShotPath),
+                    quarterTurns: turns,
+                    onShutter: camera.isReady ? _capture : null,
+                    onFlip: camera.canFlip ? _flip : null,
+                    armed: instruction?.aligned ?? false,
+                    busy: _capturing,
+                  ),
+                ),
               ),
             ),
           ],

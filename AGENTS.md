@@ -165,6 +165,7 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 - `build_assets.py` keeps one-person photos whose head and shoulders are visible (pose), classifies the framing, and builds `recommend.json`.
 
 ## 6. UX rules (from the UI mock)
+- **Preview is 3:4 (the still's own aspect), letterboxed** like Samsung's 3:4 mode: the top bar sits in the black area above it, the shutter row in the black area below. What you see is the whole photo, so saving does no crop; landscape shots only get their EXIF orientation rewritten (`exif_orientation.dart`), no re-encode.
 - Camera screen (matches the mock): **mode toggle `추천 | 맞춤` at the top left**, X right of the toggle (reset references, custom mode only, shown when references exist) and flash at the top right, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.6 / 1x / 2 / 3` (only supported levels) that opens a **continuous slider** when dragged sideways, pinch zoom, bottom row = **reference slot** · shutter · flip.
 - **Recommend mode**: where the category bar was, a **5-step bar** labelled `인물 중심` … `배경 중심` (default 3). The reference slot is hidden.
 - **Custom mode**: the 5-step bar is hidden; the reference slot is shown.
