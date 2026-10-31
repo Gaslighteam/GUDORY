@@ -88,7 +88,7 @@ Everything runs **on the phone**. No photo, frame or embedding leaves the device
 | Background embedding | CLIP ViT-B/32 vision encoder, int8 (q8) ONNX, ~89 MB, ONNX Runtime | on device |
 | Target compositions | `recommend.json` (24 KB), built offline by `tools/build_assets.py` | bundled asset |
 
-`recommend.json` was built from **861 photos**, of which 584 passed the one-person, pose and segmentation checks. It holds **22 background clusters** (8 portrait, 14 landscape), each with median compositions per level and framing, plus fallbacks per orientation and level. It contains only aggregated statistics: no photo IDs, images or per-photo numbers. If CLIP is unavailable, the app falls back to the level medians and keeps coaching.
+`recommend.json` was built from **5,603 photos**, of which 3,233 passed the one-person, pose and segmentation checks. It holds **103 background clusters** (43 portrait, 60 landscape), each with median compositions per level and framing, plus fallbacks per orientation and level. It contains only aggregated statistics: no photo IDs, images or per-photo numbers. If CLIP is unavailable, the app falls back to the level medians and keeps coaching.
 
 ## Data and credits
 - **Training photos:** photos taken by team members, and by friends who gave permission (weighted 3×). These are supplemented by **Open Images V7** one-person photos (Flickr, CC BY 2.0), weighted 1×. Originals stay on our PCs, per [data/README.md](data/README.md) and the dataset terms. Only the aggregated `recommend.json` ships.
