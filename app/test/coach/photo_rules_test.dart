@@ -48,15 +48,24 @@ TargetComposition _target({
 );
 
 void main() {
-  test('facing right moves the person to the left third', () {
+  test('facing right moves a centred target left by the minimum offset', () {
     final out = applyPhotoRules(_target(), _pose(noseX: 0.56));
-    expect(out.personCenterX, closeTo(1 / 3, 1e-9));
+    expect(out.personCenterX, closeTo(0.5 - minLeadOffset, 1e-9));
     expect(out.source, 'recommend:2+rules');
   });
 
-  test('facing left moves the person to the right third', () {
+  test('facing left moves a centred target right by the minimum offset', () {
     final out = applyPhotoRules(_target(), _pose(noseX: 0.44));
-    expect(out.personCenterX, closeTo(2 / 3, 1e-9));
+    expect(out.personCenterX, closeTo(0.5 + minLeadOffset, 1e-9));
+  });
+
+  test('facing keeps the recommended offset and only picks the side', () {
+    // Recommender v2 put the person 0.16 right of centre; facing right flips
+    // them to 0.16 left of centre so the room is in front of them.
+    final right = applyPhotoRules(_target(cx: 0.66), _pose(noseX: 0.56));
+    expect(right.personCenterX, closeTo(0.34, 1e-9));
+    final left = applyPhotoRules(_target(cx: 0.66), _pose(noseX: 0.44));
+    expect(left.personCenterX, closeTo(0.66, 1e-9));
   });
 
   test('facing the camera keeps the recommended x', () {

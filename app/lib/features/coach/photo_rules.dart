@@ -1,6 +1,8 @@
 // Photographer rules for person-centric recommend levels (1~3): nudge the
 // recommended target so the frame edge avoids joints, the head has room,
-// and the person sits on the third opposite to where they face.
+// and the person stands on the side opposite to where they face.
+import 'dart:math' as math;
+
 import '../../core/models.dart';
 
 // ML Kit landmark indices.
@@ -13,6 +15,9 @@ const minHeadRoom = 0.04; // head top to the top edge, 0~1
 const maxHeadRoom = 0.15;
 const jointMargin = 0.03; // bottom edge this close to a joint = a cut
 const facingThreshold = 0.35; // nose offset from the ears / shoulder width
+// Smallest lead-room offset from the centre when the person faces sideways
+// (v1/fallback targets sit near the centre; v2 learns its own offset).
+const minLeadOffset = 0.10;
 
 /// Returns [t] adjusted by the rules, using the live body proportions.
 /// Returns [t] unchanged when the pose cannot be measured.
@@ -55,13 +60,18 @@ TargetComposition applyPhotoRules(TargetComposition t, PoseFrame live) {
     }
   }
 
-  // 3. Lead room: facing right → stand on the left third, and vice versa.
+  // 3. Lead room: facing right → stand left of centre, and vice versa. Keep
+  //    the recommended distance from the centre (recommender v2 learns it);
+  //    the facing direction only picks the side.
   var cx = t.personCenterX;
   final shoulderW = (p[_shoulders[0]].x - p[_shoulders[1]].x).abs();
   if (shoulderW > 0.02) {
     final earMid = (p[_leftEar].x + p[_rightEar].x) / 2;
     final facing = (nose.x - earMid) / shoulderW;
-    if (facing.abs() > facingThreshold) cx = facing > 0 ? 1 / 3 : 2 / 3;
+    if (facing.abs() > facingThreshold) {
+      final offset = math.max((cx - 0.5).abs(), minLeadOffset);
+      cx = facing > 0 ? 0.5 - offset : 0.5 + offset;
+    }
   }
 
   final height = k * liveSpan;
