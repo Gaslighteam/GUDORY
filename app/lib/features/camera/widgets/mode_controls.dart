@@ -356,14 +356,15 @@ class ExpandFromButton extends AnimatedWidget {
   }
 }
 
-/// The ⠿ menu, expanded in place from its button: how-to and instruction
-/// language; × (where the button was) closes it. 언어 morphs the same pill
+/// The ⠿ menu, expanded in place from its button: how-to, instruction
+/// language and settings; × (where the button was) closes it. 언어 morphs the same pill
 /// into the three languages, with the current one selected.
 class CameraMenuPanel extends StatefulWidget {
   const CameraMenuPanel({
     super.key,
     required this.language,
     required this.onTutorial,
+    required this.onSettings,
     required this.onLanguage,
     required this.onClose,
     this.quarterTurns = 0,
@@ -372,6 +373,7 @@ class CameraMenuPanel extends StatefulWidget {
   /// Current instruction language code (`ko` / `en` / `ja`).
   final String language;
   final VoidCallback onTutorial;
+  final VoidCallback onSettings;
   final ValueChanged<String> onLanguage;
   final VoidCallback onClose;
   final int quarterTurns;
@@ -437,6 +439,15 @@ class _CameraMenuPanelState extends State<CameraMenuPanel> {
         Icons.translate,
         instructionLanguages[widget.language] ?? '한국어',
         () => setState(() => _languages = true),
+      ),
+      IconButton(
+        onPressed: widget.onSettings,
+        tooltip: '설정',
+        icon: AnimatedRotation(
+          turns: widget.quarterTurns / 4,
+          duration: const Duration(milliseconds: 250),
+          child: const Icon(Icons.settings_outlined, color: Colors.white),
+        ),
       ),
     ],
   );

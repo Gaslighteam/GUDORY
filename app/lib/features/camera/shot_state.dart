@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../app/providers.dart';
 import '../../core/models.dart';
+import '../settings/app_settings.dart';
 
 // ---- References (several allowed; kept until the user resets them) ----
 
@@ -115,9 +116,11 @@ final languageProvider = NotifierProvider<LanguageNotifier, String>(
 
 class LanguageNotifier extends Notifier<String> {
   @override
-  String build() => 'ko';
+  String build() => ref.watch(settingsProvider.select((s) => s.language));
 
-  void set(String lang) => state = lang;
+  void set(String lang) => ref
+      .read(settingsProvider.notifier)
+      .update((s) => s.copyWith(language: lang));
 }
 
 // ---- Front camera = plain camera (no coaching, no recommendation) ----

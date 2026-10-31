@@ -14,7 +14,8 @@ import '../../app/theme.dart';
 import '../../core/models.dart';
 import '../feedback/instruction_text.dart';
 import '../feedback/sensory_feedback.dart';
-import '../tutorial/tutorial_screen.dart';
+import '../settings/app_settings.dart';
+import '../tutorial/camera_tour.dart';
 import 'camera_service.dart';
 import 'coaching.dart';
 import 'framing.dart';
@@ -40,6 +41,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   bool _capturing = false;
   bool _flipping = false;
+
+  /// The how-to tour is on screen (first launch, ⠿ → 사용법, settings).
+  bool _touring = false;
+  final _bubbleKey = GlobalKey();
+  final _modeKey = GlobalKey();
+  final _compositionKey = GlobalKey();
+  final _midRowKey = GlobalKey();
+  final _zoomKey = GlobalKey();
+  final _previewKey = GlobalKey();
+  final _menuKey = GlobalKey();
+  final _bottomBarKey = GlobalKey();
 
   /// Open (or closing) panel; it stays set until the close animation ends.
   _Panel _panel = _Panel.none;
@@ -210,7 +222,85 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     });
   }
 
-  void _openTutorial() => context.push('/tutorial');
+  /// Starts the tour from a known state: back camera, recommend mode, no
+  /// open panel (so every step's control is on screen).
+  Future<void> _startTour() async {
+    _closePanel();
+    if (_camera.isFront) await _flip();
+    ref.read(modeProvider.notifier).setMode(ShootMode.recommend);
+    if (mounted) setState(() => _touring = true);
+  }
+
+  void _endTour() {
+    _closePanel();
+    setState(() => _touring = false);
+    TutorialGate.markSeen();
+  }
+
+  Future<void> _openSettings() async {
+    final result = await context.push<String>('/settings');
+    if (result == 'tour' && mounted) _startTour();
+  }
+
+  List<TourStep> get _tourSteps => [
+    const TourStep(title: '구도리 사용법', body: '카메라 화면에서 직접 눌러 보며 익혀요.\n30초면 끝나요.'),
+    TourStep(
+      target: _bubbleKey,
+      title: '한 줄 안내',
+      body: '찍는 사람이 할 일을 한 문장으로 알려 줘요. 안내대로 움직이다 구도가 맞으면 \'띵\' 소리와 진동이 나요.',
+    ),
+    TourStep(
+      target: _modeKey,
+      title: '추천 · 맞춤',
+      body: '추천: 지금 배경에 어울리는 구도를 골라 줘요.\n맞춤: 따라 하고 싶은 사진을 넣으면 그 구도로 안내해요.',
+    ),
+    TourStep(
+      target: _compositionKey,
+      title: '인물 ↔ 배경 비중',
+      body: '추천 모드에서 사람을 얼마나 크게 담을지 정해요. 버튼을 눌러 보세요.',
+      tryIt: true,
+      advanceOnUse: true,
+    ),
+    TourStep(
+      target: _midRowKey,
+      title: '단계 고르기',
+      body: '왼쪽(1)은 사람을 크게, 오른쪽(5)은 배경을 넓게 담아요. 하나 골라 보세요.',
+      tryIt: true,
+      advanceOnUse: true,
+      onLeave: _closePanel,
+    ),
+    TourStep(
+      target: _zoomKey,
+      title: '확대 · 축소',
+      body: '숫자를 누르거나 옆으로 밀어 보세요. 두 손가락으로 화면을 벌려도 돼요.',
+      tryIt: true,
+      advanceOnUse: true,
+    ),
+    TourStep(
+      target: _previewKey,
+      title: '앞 · 뒤 카메라',
+      body: '화면을 위나 아래로 밀면 카메라가 바뀌어요. 셀카는 안내 없이 그냥 찍혀요.',
+      tryIt: true,
+    ),
+    TourStep(
+      target: _menuKey,
+      title: '메뉴',
+      body: '버튼을 눌러 보세요.',
+      tryIt: true,
+      advanceOnUse: true,
+    ),
+    TourStep(
+      target: _midRowKey,
+      title: '사용법 · 언어 · 설정',
+      body: '사용법은 여기서 다시 볼 수 있어요. 안내 언어(한국어·English·日本語)와 설정도 여기 있어요.',
+      onLeave: _closePanel,
+    ),
+    TourStep(
+      target: _bottomBarKey,
+      title: '셔터',
+      body: '구도가 맞으면 셔터 테두리가 노랗게 바뀌어요. 그때 눌러 찍으세요. 사진은 앨범의 GUDORY 폴더에 저장돼요.',
+    ),
+  ];
 
   void _openPanel(_Panel panel) {
     setState(() => _panel = panel);
@@ -263,7 +353,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   Future<void> _showTutorialOnFirstLaunch() async {
     if (!await TutorialGate.shouldShow() || !mounted) return;
-    _openTutorial();
+    // Wait for the camera (and its permission prompt) so the controls exist.
+    for (var i = 0; i < 50 && !_camera.isReady; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    if (mounted && !_touring) _startTour();
   }
 
   void _toast(String message) {
@@ -306,6 +400,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           width: 44,
           child: showComposition
               ? CompositionButton(
+                  key: _compositionKey,
                   level: mode.level,
                   onPressed: () => _openPanel(_Panel.composition),
                   quarterTurns: turns,
@@ -316,6 +411,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           child: Center(
             child: camera.isReady
                 ? ZoomControl(
+                    key: _zoomKey,
                     min: camera.minZoom,
                     max: camera.maxZoom,
                     zoom: camera.zoom,
@@ -325,7 +421,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                 : const SizedBox.shrink(),
           ),
         ),
-        MenuDotsButton(onPressed: () => _openPanel(_Panel.menu)),
+        MenuDotsButton(key: _menuKey, onPressed: () => _openPanel(_Panel.menu)),
       ],
     );
   }
@@ -343,188 +439,211 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     // Front camera = plain camera: no coaching UI at all.
     final front = ref.watch(frontCameraProvider);
     final showComposition = !custom && !front;
+    final settings = ref.watch(settingsProvider);
     ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: ListenableBuilder(
-        listenable: camera,
-        builder: (context, _) => Column(
-          children: [
-            // Top bar sits above the 3:4 preview (Samsung-style).
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Row(
-                  children: [
-                    if (!front)
-                      ModeToggle(
-                        mode: mode.mode,
-                        onChanged: _setMode,
-                        quarterTurns: turns,
-                      ),
-                    if (!front && custom && !reference.isEmpty) ...[
-                      const SizedBox(width: 10),
-                      RoundIconButton(
-                        icon: Icons.close,
-                        onPressed: _resetReferences,
-                        size: _topButton,
-                        tooltip: '레퍼런스 초기화',
-                        quarterTurns: turns,
-                      ),
-                    ],
-                    const Spacer(),
-                    RoundIconButton(
-                      icon: switch (camera.flashMode) {
-                        FlashMode.auto => Icons.flash_auto,
-                        FlashMode.always => Icons.flash_on,
-                        _ => Icons.flash_off,
-                      },
-                      onPressed: camera.isReady ? camera.cycleFlash : null,
-                      size: _topButton,
-                      tooltip: '플래시',
-                      quarterTurns: turns,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // The preview has the still's own aspect (3:4), so what you see is
-            // the whole photo: nothing is cropped when saving.
-            AspectRatio(
-              aspectRatio: _frameAspect(camera),
-              child: LayoutBuilder(
-                builder: (context, area) {
-                  _publishVisibleCrop(area.biggest, camera);
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      GestureDetector(
-                        onScaleStart: _onPreviewScaleStart,
-                        onScaleUpdate: _onPreviewScaleUpdate,
-                        onScaleEnd: _onPreviewScaleEnd,
-                        child: _Preview(camera: camera, onRetry: camera.start),
-                      ),
-                      if (camera.isReady) ...[
-                        const GridOverlay(),
-                        const CenterCrosshair(),
+      body: Stack(
+        children: [
+          ListenableBuilder(
+            listenable: camera,
+            builder: (context, _) => Column(
+              children: [
+                // Top bar sits above the 3:4 preview (Samsung-style).
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Row(
+                      children: [
+                        if (!front)
+                          ModeToggle(
+                            key: _modeKey,
+                            mode: mode.mode,
+                            onChanged: _setMode,
+                            quarterTurns: turns,
+                          ),
+                        if (!front && custom && !reference.isEmpty) ...[
+                          const SizedBox(width: 10),
+                          RoundIconButton(
+                            icon: Icons.close,
+                            onPressed: _resetReferences,
+                            size: _topButton,
+                            tooltip: '레퍼런스 초기화',
+                            quarterTurns: turns,
+                          ),
+                        ],
+                        const Spacer(),
+                        RoundIconButton(
+                          icon: switch (camera.flashMode) {
+                            FlashMode.auto => Icons.flash_auto,
+                            FlashMode.always => Icons.flash_on,
+                            _ => Icons.flash_off,
+                          },
+                          onPressed: camera.isReady ? camera.cycleFlash : null,
+                          size: _topButton,
+                          tooltip: '플래시',
+                          quarterTurns: turns,
+                        ),
                       ],
-                      if (!front)
-                        Align(
-                          alignment: const Alignment(0, -0.5),
-                          child: AnimatedRotation(
-                            turns: turns / 4,
-                            duration: const Duration(milliseconds: 250),
-                            child: GestureDetector(
-                              // Debug builds: long-press plays a scripted session,
-                              // double-tap opens the pose overlay.
-                              onLongPress: kDebugMode
-                                  ? ref.read(coachingProvider.notifier).runDemo
-                                  : null,
-                              onDoubleTap: kDebugMode
-                                  ? () => context.push('/debug/pose')
-                                  : null,
-                              child: _bubble(instruction, lang),
-                            ),
-                          ),
-                        ),
-                      if (_toastText != null)
-                        SafeArea(
-                          child: Align(
-                            alignment: const Alignment(0, -0.82),
-                            child: _Toast(text: _toastText!),
-                          ),
-                        ),
-                      // Composition (recommend only) · zoom · ⠿ menu. The
-                      // round buttons expand in place into their panels; the
-                      // rest of the row fades out, and a tap anywhere else
-                      // closes the panel.
-                      Positioned(
-                        left: 16,
-                        right: 16,
-                        bottom: 14,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            FadeTransition(
-                              opacity: ReverseAnimation(_panelCurve),
-                              child: IgnorePointer(
-                                ignoring: _panel != _Panel.none,
-                                child: _midRow(
-                                  camera,
-                                  mode,
-                                  showComposition,
-                                  turns,
-                                ),
-                              ),
-                            ),
-                            if (_panel == _Panel.composition && showComposition)
-                              TapRegion(
-                                onTapOutside: (_) => _closePanel(),
-                                child: ExpandFromButton(
-                                  animation: _panelCurve,
-                                  alignment: Alignment.centerLeft,
-                                  child: CompositionPanel(
-                                    level: mode.level,
-                                    onChanged: ref
-                                        .read(modeProvider.notifier)
-                                        .setLevel,
-                                    onClose: () {
-                                      if (mounted) _closePanel();
-                                    },
-                                    quarterTurns: turns,
-                                  ),
-                                ),
-                              ),
-                            if (_panel == _Panel.menu)
-                              TapRegion(
-                                onTapOutside: (_) => _closePanel(),
-                                child: ExpandFromButton(
-                                  animation: _panelCurve,
-                                  alignment: Alignment.centerRight,
-                                  child: CameraMenuPanel(
-                                    language: lang,
-                                    onTutorial: () {
-                                      _closePanel();
-                                      _openTutorial();
-                                    },
-                                    onLanguage: _setLanguage,
-                                    onClose: _closePanel,
-                                    quarterTurns: turns,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: Center(
-                  child: BottomBar(
-                    reference: custom && !front
-                        ? ReferenceThumb(
-                            state: reference,
-                            onTap: _onReferenceTap,
-                          )
-                        : LastShotThumb(path: _lastShotPath),
-                    quarterTurns: turns,
-                    onShutter: camera.isReady ? _capture : null,
-                    onFlip: camera.canFlip ? _flip : null,
-                    armed: instruction?.aligned ?? false,
-                    busy: _capturing,
+                    ),
                   ),
                 ),
-              ),
+                // The preview has the still's own aspect (3:4), so what you see is
+                // the whole photo: nothing is cropped when saving.
+                AspectRatio(
+                  key: _previewKey,
+                  aspectRatio: _frameAspect(camera),
+                  child: LayoutBuilder(
+                    builder: (context, area) {
+                      _publishVisibleCrop(area.biggest, camera);
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          GestureDetector(
+                            onScaleStart: _onPreviewScaleStart,
+                            onScaleUpdate: _onPreviewScaleUpdate,
+                            onScaleEnd: _onPreviewScaleEnd,
+                            child: _Preview(
+                              camera: camera,
+                              onRetry: camera.start,
+                            ),
+                          ),
+                          if (camera.isReady) ...[
+                            if (settings.grid) const GridOverlay(),
+                            if (settings.crosshair) const CenterCrosshair(),
+                          ],
+                          if (!front)
+                            Align(
+                              alignment: const Alignment(0, -0.5),
+                              child: AnimatedRotation(
+                                turns: turns / 4,
+                                duration: const Duration(milliseconds: 250),
+                                child: GestureDetector(
+                                  // Debug builds: long-press plays a scripted session,
+                                  // double-tap opens the pose overlay.
+                                  onLongPress: kDebugMode
+                                      ? ref
+                                            .read(coachingProvider.notifier)
+                                            .runDemo
+                                      : null,
+                                  onDoubleTap: kDebugMode
+                                      ? () => context.push('/debug/pose')
+                                      : null,
+                                  child: KeyedSubtree(
+                                    key: _bubbleKey,
+                                    child: _bubble(instruction, lang),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (_toastText != null)
+                            SafeArea(
+                              child: Align(
+                                alignment: const Alignment(0, -0.82),
+                                child: _Toast(text: _toastText!),
+                              ),
+                            ),
+                          // Composition (recommend only) · zoom · ⠿ menu. The
+                          // round buttons expand in place into their panels; the
+                          // rest of the row fades out, and a tap anywhere else
+                          // closes the panel.
+                          Positioned(
+                            left: 16,
+                            right: 16,
+                            bottom: 14,
+                            child: Stack(
+                              key: _midRowKey,
+                              alignment: Alignment.center,
+                              children: [
+                                FadeTransition(
+                                  opacity: ReverseAnimation(_panelCurve),
+                                  child: IgnorePointer(
+                                    ignoring: _panel != _Panel.none,
+                                    child: _midRow(
+                                      camera,
+                                      mode,
+                                      showComposition,
+                                      turns,
+                                    ),
+                                  ),
+                                ),
+                                if (_panel == _Panel.composition &&
+                                    showComposition)
+                                  TapRegion(
+                                    onTapOutside: (_) => _closePanel(),
+                                    child: ExpandFromButton(
+                                      animation: _panelCurve,
+                                      alignment: Alignment.centerLeft,
+                                      child: CompositionPanel(
+                                        level: mode.level,
+                                        onChanged: ref
+                                            .read(modeProvider.notifier)
+                                            .setLevel,
+                                        onClose: () {
+                                          if (mounted) _closePanel();
+                                        },
+                                        quarterTurns: turns,
+                                      ),
+                                    ),
+                                  ),
+                                if (_panel == _Panel.menu)
+                                  TapRegion(
+                                    onTapOutside: (_) => _closePanel(),
+                                    child: ExpandFromButton(
+                                      animation: _panelCurve,
+                                      alignment: Alignment.centerRight,
+                                      child: CameraMenuPanel(
+                                        language: lang,
+                                        onTutorial: _startTour,
+                                        onSettings: () {
+                                          _closePanel();
+                                          _openSettings();
+                                        },
+                                        onLanguage: _setLanguage,
+                                        onClose: _closePanel,
+                                        quarterTurns: turns,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: SafeArea(
+                    top: false,
+                    child: Center(
+                      child: BottomBar(
+                        key: _bottomBarKey,
+                        reference: custom && !front
+                            ? ReferenceThumb(
+                                state: reference,
+                                onTap: _onReferenceTap,
+                              )
+                            : LastShotThumb(path: _lastShotPath),
+                        quarterTurns: turns,
+                        onShutter: camera.isReady ? _capture : null,
+                        onFlip: camera.canFlip ? _flip : null,
+                        armed: instruction?.aligned ?? false,
+                        busy: _capturing,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          if (_touring)
+            Positioned.fill(
+              child: CameraTour(steps: _tourSteps, onDone: _endTour),
+            ),
+        ],
       ),
     );
   }
