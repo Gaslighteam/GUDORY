@@ -13,41 +13,126 @@ final coachingProvider = NotifierProvider<CoachingNotifier, CoachInstruction?>(
 
 class CoachingNotifier extends Notifier<CoachInstruction?> {
   StreamSubscription<PoseFrame>? _poses;
+  StreamSubscription<CameraFrame>? _frames;
   Timer? _demo;
+
+  // Recommend mode: latest recommendation and what it was computed for.
+  CameraFrame? _lastFrame;
+  TargetComposition? _recommended;
+  int? _recLevel;
+  ShotOrientation? _recOrientation;
+  DateTime _recAt = DateTime(0);
+  bool _recBusy = false;
+
+  static const _refreshEvery = Duration(seconds: 3);
+
+  static const _addReference = CoachInstruction(
+    key: InstructionKey.addReference,
+    axis: null,
+    who: Who.camera,
+    amount: 0.5,
+    error: 0,
+    aligned: false,
+    errors: {},
+  );
 
   @override
   CoachInstruction? build() {
     ref.onDispose(() {
       _poses?.cancel();
+      _frames?.cancel();
       _demo?.cancel();
     });
+
+    // Switching modes starts the coaching over.
+    ref.listen<ModeState>(modeProvider, (previous, next) {
+      if (previous?.mode != next.mode) reset();
+      _syncAddReference();
+    });
+    ref.listen<ReferenceState>(
+      referenceProvider,
+      (_, _) => _syncAddReference(),
+    );
+
     final poseSource = ref.watch(poseSourceProvider);
     final engine = ref.watch(coachEngineProvider);
     if (poseSource != null && engine != null) {
-      _poses = poseSource
-          .poses(ref.watch(frameBusProvider))
-          .listen((frame) => state = engine.update(frame, _target()));
+      final bus = ref.watch(frameBusProvider);
+      _frames = bus.frames.listen((frame) => _lastFrame = frame);
+      _poses = poseSource.poses(bus).listen((frame) {
+        final target = _target(frame.orientation);
+        state = target == null ? _addReference : engine.update(frame, target);
+      });
     }
-    return null;
+    return _needsReference() ? _addReference : null;
   }
 
-  /// Reference wins; otherwise the selected category's good composition.
-  TargetComposition _target() {
-    final reference = ref.read(referenceProvider);
-    final active = reference.active;
-    if (active != null) return active.target;
-    final library = ref.read(compositionLibraryProvider);
-    final categoryId = ref.read(categoryProvider).selectedId;
-    if (library != null && categoryId != null) {
-      return library.targetFor(categoryId);
+  bool _needsReference() =>
+      ref.read(modeProvider).mode == ShootMode.custom &&
+      ref.read(referenceProvider).isEmpty;
+
+  /// Shows / clears the "add a reference" prompt without waiting for a pose.
+  void _syncAddReference() {
+    if (_needsReference()) {
+      state = _addReference;
+    } else if (state?.key == InstructionKey.addReference) {
+      state = null;
     }
-    return TargetComposition.fallback;
+  }
+
+  /// custom → active reference (null = ask for one);
+  /// recommend → latest recommendation for the level and orientation.
+  TargetComposition? _target(ShotOrientation orientation) {
+    final mode = ref.read(modeProvider);
+    if (mode.mode == ShootMode.custom) {
+      return ref.read(referenceProvider).active?.target;
+    }
+    final stale =
+        _recLevel != mode.level ||
+        _recOrientation != orientation ||
+        DateTime.now().difference(_recAt) > _refreshEvery;
+    if (stale) _refreshRecommendation(mode.level, orientation);
+    final current = _recommended;
+    if (current != null &&
+        _recLevel == mode.level &&
+        _recOrientation == orientation) {
+      return current;
+    }
+    return TargetComposition(
+      personHeightRatio: TargetComposition.fallback.personHeightRatio,
+      personCenterX: TargetComposition.fallback.personCenterX,
+      personCenterY: TargetComposition.fallback.personCenterY,
+      orientation: orientation,
+      source: 'fallback',
+    );
+  }
+
+  Future<void> _refreshRecommendation(
+    int level,
+    ShotOrientation orientation,
+  ) async {
+    final frame = _lastFrame;
+    if (_recBusy || frame == null) return;
+    _recBusy = true;
+    try {
+      final rec = await ref
+          .read(recommenderProvider)
+          .recommend(frame, level, orientation);
+      _recommended = rec.target;
+      _recLevel = level;
+      _recOrientation = orientation;
+      _recAt = DateTime.now();
+    } catch (_) {
+      // Recommender never throws by contract; keep the previous target.
+    } finally {
+      _recBusy = false;
+    }
   }
 
   void reset() {
     _demo?.cancel();
     ref.read(coachEngineProvider)?.reset();
-    state = null;
+    state = _needsReference() ? _addReference : null;
   }
 
   bool get isDemoRunning => _demo?.isActive ?? false;

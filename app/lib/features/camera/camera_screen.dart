@@ -71,7 +71,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   }
 
   void _onInstruction(CoachInstruction? previous, CoachInstruction? next) {
-    if (next == null) {
+    // "Add a reference" is shown in the bubble only: no voice, beeps or shot.
+    if (next == null || next.key == InstructionKey.addReference) {
       _autoShutter?.cancel();
       _feedback.stop();
       return;
@@ -98,21 +99,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     try {
       final file = await _camera.takePicture();
       final saved = await _saveToGallery(file.path);
-      final category = ref.read(categoryProvider);
-      final tags = [
-        if (category.selectedId != null) category.labelOf(category.selectedId!),
-        for (final id in category.guess?.hashtagIds ?? const <String>[])
-          category.hashtagLabels[id] ?? '#$id',
-      ];
-      // References stay until the user resets them; a manual category pin
-      // applies to one shot only.
-      ref.read(categoryProvider.notifier).clearManual();
+      // References stay until the user resets them.
       ref.read(coachingProvider.notifier).reset();
-      _toast(
-        saved
-            ? '갤러리에 저장했어요${tags.isEmpty ? '' : '  ·  ${tags.join(' ')}'}'
-            : '사진을 저장하지 못했어요',
-      );
+      _toast(saved ? '앨범에 저장했어요' : '사진을 저장하지 못했어요');
     } catch (_) {
       _toast('사진을 찍지 못했어요. 다시 눌러 주세요');
     } finally {
@@ -164,7 +153,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   Widget build(BuildContext context) {
     final camera = ref.watch(cameraServiceProvider);
     final reference = ref.watch(referenceProvider);
-    final category = ref.watch(categoryProvider);
     final instruction = ref.watch(coachingProvider);
     ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
@@ -274,16 +262,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     ),
                   ),
                 ],
-              ),
-            ),
-            Container(
-              color: const Color(0xFF1C1C1E),
-              child: CategoryChips(
-                categories: category.categories,
-                selectedId: category.selectedId,
-                suggestedIds: category.guess?.suggestedIds ?? const [],
-                manualId: category.manualId,
-                onTap: ref.read(categoryProvider.notifier).tap,
               ),
             ),
             SafeArea(

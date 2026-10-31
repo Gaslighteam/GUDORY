@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/contracts.dart';
 import '../features/camera/camera_service.dart';
+import '../features/camera/fakes/fake_recommender.dart';
 import '../features/camera/fakes/fake_reference_analyzer.dart';
 
 /// Live camera frames for pose (Eungyu) and scene (Seojun) analysis.
@@ -23,5 +24,5 @@ final poseSourceProvider = Provider<PoseSource?>((ref) => null);
 /// TODO(lead): Eungyu's CoachEngine (integration 1, 22:00).
 final coachEngineProvider = Provider<CoachEngine?>((ref) => null);
 
-/// TODO(lead): Seojun's CompositionLibrary (integration 2, 01:00).
-final compositionLibraryProvider = Provider<CompositionLibrary?>((ref) => null);
+/// TODO(lead): switch to Seojun's Recommender when feat/scene lands.
+final recommenderProvider = Provider<Recommender>((ref) => FakeRecommender());
