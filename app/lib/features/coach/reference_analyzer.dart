@@ -106,14 +106,18 @@ TargetComposition referenceTargetFromLandmarks({
   if (landmarks == null || landmarks.length != 33) {
     throw const NoPersonException();
   }
-  // The eye line is required for a reference target, even though live
-  // composition_math can use finite predicted eye positions at low confidence.
+  // Shoulders must be visible. Nose and eyes may have any visibility above 0
+  // (estimated positions: back views and profiles, AGENTS.md head reference)
+  // but must lie inside the reference image.
   for (final index in [0, 2, 5, 11, 12]) {
     final point = landmarks[index];
+    final head = index == 0 || index == 2 || index == 5;
     if (!point.x.isFinite ||
         !point.y.isFinite ||
         !point.visibility.isFinite ||
-        point.visibility < landmarkVisibilityThreshold ||
+        (head
+            ? point.visibility <= 0
+            : point.visibility < landmarkVisibilityThreshold) ||
         point.x < 0 ||
         point.x > 1 ||
         point.y < 0 ||

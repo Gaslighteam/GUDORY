@@ -52,16 +52,18 @@ class CompositionMetrics {
 }
 
 /// Measures live landmarks at the target's framing in the supplied shot space.
-/// Nose and both shoulders must be visible. Eye-line coordinates must be finite;
-/// the eye line uses ML Kit's two eye positions (indices 2 and 5).
+/// Both shoulders must be visible. Nose and eyes use the coordinates ML Kit
+/// always estimates, whatever their visibility (AGENTS.md head reference), so
+/// back views and profiles are measured too; the eye line uses indices 2 and 5.
+/// Visibility exactly 0 is PoseSource's placeholder for a missing landmark.
 CompositionMetrics? measureComposition(
   PoseFrame frame, {
   Framing framing = Framing.fullBody,
 }) {
   final points = frame.landmarks;
   if (points == null || points.length != 33) return null;
-  if (![0, 11, 12].every((index) => _visible(points[index]))) return null;
-  if (!_finite(points[2]) || !_finite(points[5])) return null;
+  if (!_visible(points[11]) || !_visible(points[12])) return null;
+  if (![0, 2, 5].every((index) => _estimated(points[index]))) return null;
 
   final shoulderY = (points[11].y + points[12].y) / 2;
   final headY = estimateHeadTopY(points[0].y, shoulderY);
@@ -102,6 +104,8 @@ CompositionMetrics? measureComposition(
 
 bool _finite(Landmark point) =>
     point.x.isFinite && point.y.isFinite && point.visibility.isFinite;
+
+bool _estimated(Landmark point) => _finite(point) && point.visibility > 0;
 
 bool _visible(Landmark point) =>
     _finite(point) &&
