@@ -121,3 +121,25 @@ pillow | 13.0.0
 scikit-learn | 1.9.1
 
 Model hashes identify local model files, never individual training photos.
+
+## Provisional asset and fixed baseline comparison
+
+recommend.json is provisional and may be regenerated when more photos arrive.
+Every run recursively discovers the full photo input and recomputes pose statistics,
+embeddings, boundaries, clusters and fallbacks from scratch. Prior JSON/report
+statistics are never loaded as training input. This baseline is read only for reporting.
+
+Metric | Fixed baseline | Current | Change
+--- | ---: | ---: | ---:
+processed | 797 | 797 | +0
+pose_accepted | 552 | 552 | +0
+clip_accepted | 548 | 548 | +0
+portrait_photos | 206 | 206 | +0
+landscape_photos | 342 | 342 | +0
+portrait_clusters | 8 | 8 | +0
+landscape_clusters | 14 | 14 | +0
+json_bytes | 23478 | 23478 | +0
+
+Configuration matches fixed baseline: yes.
+Aggregate asset SHA-256 matches fixed baseline: yes.
+The fixed baseline is never overwritten automatically. No photo IDs or per-photo history are stored.
