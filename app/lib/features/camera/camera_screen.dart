@@ -278,12 +278,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             ),
             Container(
               color: const Color(0xFF1C1C1E),
-              child: CategoryChips(
+              child: CategoryWheel(
                 categories: category.categories,
                 selectedId: category.selectedId,
                 suggestedIds: category.guess?.suggestedIds ?? const [],
                 manualId: category.manualId,
-                onTap: ref.read(categoryProvider.notifier).tap,
+                onPin: ref.read(categoryProvider.notifier).pin,
               ),
             ),
             SafeArea(

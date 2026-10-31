@@ -168,5 +168,8 @@ class CategoryNotifier extends Notifier<CategoryState> {
   void tap(String id) =>
       state = state.copyWith(manualId: () => state.manualId == id ? null : id);
 
+  /// Pin a category chosen by swiping the wheel.
+  void pin(String id) => state = state.copyWith(manualId: () => id);
+
   void clearManual() => state = state.copyWith(manualId: () => null);
 }

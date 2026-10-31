@@ -37,10 +37,12 @@ class CameraService extends ChangeNotifier implements FrameBus {
       _cameras.any((c) => c.lensDirection == CameraLensDirection.front) &&
       _cameras.any((c) => c.lensDirection == CameraLensDirection.back);
 
-  /// Zoom presets shown as chips; only levels the device supports.
+  /// Zoom presets `.6 / 1x / 2 / 3`; only levels the device supports.
+  /// (Ultra-wide phones report ~0.6 as the minimum ratio.)
   List<double> get zoomPresets => [
-    if (minZoom <= 0.55) 0.5,
+    if (minZoom <= 0.61) 0.6,
     1,
+    if (maxZoom >= 2) 2,
     if (maxZoom >= 3) 3,
   ];
 

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models.dart';
@@ -220,54 +221,136 @@ class _ZoomControlState extends State<ZoomControl> {
   static const _small = TextStyle(color: Colors.white70, fontSize: 11);
 }
 
-/// Scene categories spread across the bar; selected = rounded fill,
-/// suggestions = yellow dot, manual pin = yellow outline.
-class CategoryChips extends StatelessWidget {
-  const CategoryChips({
+/// Scene categories as a swipeable wheel: the centered item is the
+/// selection and snaps into place with a haptic tick. Auto guesses scroll
+/// the wheel; a swipe or tap pins that category (yellow outline).
+/// Suggestions carry a yellow dot.
+class CategoryWheel extends StatefulWidget {
+  const CategoryWheel({
     super.key,
     required this.categories,
     required this.selectedId,
     required this.suggestedIds,
     required this.manualId,
-    required this.onTap,
+    required this.onPin,
   });
 
   final List<CategoryInfo> categories;
   final String? selectedId;
   final List<String> suggestedIds;
   final String? manualId;
-  final ValueChanged<String> onTap;
+  final ValueChanged<String> onPin;
+
+  @override
+  State<CategoryWheel> createState() => _CategoryWheelState();
+}
+
+class _CategoryWheelState extends State<CategoryWheel> {
+  static const _itemWidth = 92.0;
+
+  PageController? _pages;
+  double _viewport = 0;
+
+  /// True while the wheel moves because of a guess, not the user.
+  bool _programmatic = false;
+
+  int get _selectedIndex {
+    final i = widget.categories.indexWhere((c) => c.id == widget.selectedId);
+    return i < 0 ? 0 : i;
+  }
+
+  @override
+  void didUpdateWidget(CategoryWheel old) {
+    super.didUpdateWidget(old);
+    final pages = _pages;
+    if (pages == null || !pages.hasClients) return;
+    final current = pages.page?.round() ?? pages.initialPage;
+    if (current != _selectedIndex) _animateTo(_selectedIndex);
+  }
+
+  @override
+  void dispose() {
+    _pages?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _animateTo(int index) async {
+    _programmatic = true;
+    await _pages!.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+    _programmatic = false;
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.categories.isEmpty) return const SizedBox(height: 64);
     return SizedBox(
       height: 64,
-      child: Row(
-        children: [
-          for (var i = 0; i < categories.length; i++) ...[
-            if (i > 0)
-              Container(
-                width: 1,
-                height: 22,
-                color: Colors.white.withValues(alpha: 0.2),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (_pages == null || constraints.maxWidth != _viewport) {
+            _viewport = constraints.maxWidth;
+            final old = _pages;
+            _pages = PageController(
+              initialPage: _selectedIndex,
+              viewportFraction: (_itemWidth / _viewport).clamp(0.15, 0.5),
+            );
+            old?.dispose();
+          }
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              PageView.builder(
+                controller: _pages,
+                itemCount: widget.categories.length,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (i) {
+                  HapticFeedback.selectionClick();
+                  if (!_programmatic) widget.onPin(widget.categories[i].id);
+                },
+                itemBuilder: (context, i) => _item(i),
               ),
-            Expanded(child: _chip(categories[i])),
-          ],
-        ],
+              // Soft fade at both ends so items slide in and out.
+              IgnorePointer(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFF1C1C1E),
+                        Color(0x001C1C1E),
+                        Color(0x001C1C1E),
+                        Color(0xFF1C1C1E),
+                      ],
+                      stops: [0, 0.18, 0.82, 1],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _chip(CategoryInfo category) {
-    final selected = category.id == selectedId;
-    final pinned = category.id == manualId;
-    final suggested = !selected && suggestedIds.contains(category.id);
+  Widget _item(int i) {
+    final category = widget.categories[i];
+    final selected = i == _selectedIndex;
+    final pinned = category.id == widget.manualId;
+    final suggested = !selected && widget.suggestedIds.contains(category.id);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => onTap(category.id),
+      onTap: () {
+        widget.onPin(category.id);
+        _animateTo(i);
+      },
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           decoration: BoxDecoration(
             color: selected ? AppColors.chipSelected : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.chip),
@@ -282,7 +365,7 @@ class CategoryChips extends StatelessWidget {
                 category.label,
                 style: TextStyle(
                   fontSize: AppText.chip,
-                  color: AppColors.text,
+                  color: selected ? AppColors.text : Colors.white70,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
