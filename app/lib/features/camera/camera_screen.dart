@@ -8,6 +8,7 @@ import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/models.dart';
 import '../feedback/instruction_text.dart';
@@ -58,6 +59,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _camera.start();
+    // Create the recommender now so CLIP loads while the user frames the shot.
+    ref.read(recommenderProvider);
   }
 
   @override
