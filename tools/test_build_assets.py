@@ -1,4 +1,4 @@
-"""The submitted entry point must route only the approved pose milestone."""
+"""CLI preserves pose-only validation and routes aggregate asset generation."""
 import contextlib
 import io
 import unittest
@@ -17,13 +17,18 @@ class EntryPointTests(unittest.TestCase):
         run.assert_called_once_with(original[1:])
         self.assertEqual(args, original)
 
-    def test_asset_generation_is_not_exposed(self):
+    def test_missing_model_arguments_fail_before_inference(self):
         with patch.object(build_assets, "pose_main") as run, \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as error:
                 build_assets.main(["--photos", "fixture"])
         self.assertEqual(error.exception.code, 2)
         run.assert_not_called()
+
+    def test_default_routes_to_recommendation_pipeline(self):
+        with patch("recommendation_pipeline.main", return_value=8) as run:
+            self.assertEqual(build_assets.main(["--photos", "fixture"]), 8)
+        run.assert_called_once_with(["--photos", "fixture"])
 
 
 if __name__ == "__main__":
