@@ -71,6 +71,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   String? _toastText;
 
   Timer? _toastTimer;
+
+  /// Mode-change popup at the top centre: shown, then faded out.
+  ShootMode? _modeNotice;
+  bool _modeNoticeOn = false;
+  Timer? _modeNoticeTimer;
   double _pinchBase = 1;
 
   /// One-finger drag on the preview since the gesture began; a mostly
@@ -98,6 +103,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   @override
   void dispose() {
     _toastTimer?.cancel();
+    _modeNoticeTimer?.cancel();
     _panelAnim.dispose();
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
@@ -348,7 +354,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   void _setMode(ShootMode mode) {
     ref.read(modeProvider.notifier).setMode(mode);
     _closePanel();
-    _toast(mode == ShootMode.recommend ? '추천 모드' : '맞춤 모드');
+    _announceMode(mode);
+  }
+
+  void _announceMode(ShootMode mode) {
+    _modeNoticeTimer?.cancel();
+    setState(() {
+      _modeNotice = mode;
+      _modeNoticeOn = true;
+    });
+    _modeNoticeTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() => _modeNoticeOn = false);
+    });
   }
 
   Future<void> _showTutorialOnFirstLaunch() async {
@@ -534,6 +551,37 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                   child: KeyedSubtree(
                                     key: _bubbleKey,
                                     child: _bubble(instruction, lang),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (_modeNotice != null)
+                            SafeArea(
+                              child: Align(
+                                alignment: const Alignment(0, -0.9),
+                                child: IgnorePointer(
+                                  child: AnimatedOpacity(
+                                    opacity: _modeNoticeOn ? 1 : 0,
+                                    duration: _modeNoticeOn
+                                        ? const Duration(milliseconds: 160)
+                                        : const Duration(milliseconds: 500),
+                                    curve: Curves.easeOut,
+                                    child: AnimatedSlide(
+                                      offset: _modeNoticeOn
+                                          ? Offset.zero
+                                          : const Offset(0, -0.25),
+                                      duration: const Duration(
+                                        milliseconds: 500,
+                                      ),
+                                      curve: Curves.easeOut,
+                                      child: AnimatedRotation(
+                                        turns: turns / 4,
+                                        duration: const Duration(
+                                          milliseconds: 250,
+                                        ),
+                                        child: ModeNotice(mode: _modeNotice!),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),

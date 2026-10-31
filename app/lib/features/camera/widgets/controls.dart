@@ -268,6 +268,41 @@ class _ZoomControlState extends State<ZoomControl> {
   }
 }
 
+/// Minor tick spacing in ln(zoom): 0.07 x 180 px = 12.6 px on screen.
+const zoomRulerMinorStep = 0.07;
+
+/// x of the zoom ruler's minor ticks: evenly spaced on screen (a fixed step in
+/// ln(zoom)) so the gaps stay equal while scrolling; 0.1x steps bunch up on a
+/// log scale. Ticks within half a step of a labelled major are left out.
+@visibleForTesting
+List<double> zoomRulerMinorTicks({
+  required double zoom,
+  required double min,
+  required double max,
+  required double width,
+  required double pxPerLog,
+  required List<double> majors,
+}) {
+  double xOf(double lnZ) => width / 2 + (lnZ - math.log(zoom)) * pxPerLog;
+  final majorXs = [
+    for (final m in majors)
+      if (m >= min - 1e-6 && m <= max + 1e-6) xOf(math.log(m)),
+  ];
+  final gap = zoomRulerMinorStep * pxPerLog;
+  return [
+    for (
+      var k = (math.log(min) / zoomRulerMinorStep).ceil();
+      k <= (math.log(max) / zoomRulerMinorStep).floor();
+      k++
+    )
+      if (xOf(k * zoomRulerMinorStep) case final x
+          when x >= -10 &&
+              x <= width + 10 &&
+              !majorXs.any((m) => (m - x).abs() < gap / 2))
+        x,
+  ];
+}
+
 class _ZoomRulerPainter extends CustomPainter {
   const _ZoomRulerPainter({
     required this.zoom,
@@ -296,29 +331,28 @@ class _ZoomRulerPainter extends CustomPainter {
       ..color = Colors.white
       ..strokeWidth = 2;
 
-    // 0.1× ticks; skipped where they would crowd (< 5 px apart).
-    var lastX = -1e9;
-    for (var t = (min * 10).ceil(); t <= (max * 10).floor(); t++) {
-      final z = t / 10;
-      final x = xOf(z);
+    for (final x in zoomRulerMinorTicks(
+      zoom: zoom,
+      min: min,
+      max: max,
+      width: size.width,
+      pxPerLog: pxPerLog,
+      majors: majors,
+    )) {
+      canvas.drawLine(Offset(x, baseY), Offset(x, baseY - 8), minor);
+    }
+    for (final m in majors) {
+      if (m < min - 1e-6 || m > max + 1e-6) continue;
+      final x = xOf(m);
       if (x < -10 || x > size.width + 10) continue;
-      final isMajor = majors.any((m) => (m - z).abs() < 1e-6);
-      if (!isMajor && x - lastX < 5) continue;
-      lastX = x;
-      canvas.drawLine(
-        Offset(x, baseY),
-        Offset(x, baseY - (isMajor ? 16 : 8)),
-        isMajor ? major : minor,
+      canvas.drawLine(Offset(x, baseY), Offset(x, baseY - 16), major);
+      _text(
+        canvas,
+        ZoomControlLabels.preset(m),
+        Offset(x, baseY - 30),
+        Colors.white70,
+        11,
       );
-      if (isMajor) {
-        _text(
-          canvas,
-          ZoomControlLabels.preset(z),
-          Offset(x, baseY - 30),
-          Colors.white70,
-          11,
-        );
-      }
     }
     // Fixed centre marker and the live value.
     canvas.drawLine(
