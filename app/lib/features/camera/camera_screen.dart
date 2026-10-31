@@ -1,16 +1,23 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
-import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/theme.dart';
+import '../../core/models.dart';
+import '../feedback/instruction_text.dart';
+import '../feedback/sensory_feedback.dart';
 import 'camera_service.dart';
+import 'coaching.dart';
 import 'shot_state.dart';
 import 'widgets/controls.dart';
 import 'widgets/instruction_bubble.dart';
 import 'widgets/overlays.dart';
+import 'widgets/reference_sheet.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -22,8 +29,16 @@ class CameraScreen extends ConsumerStatefulWidget {
 class _CameraScreenState extends ConsumerState<CameraScreen>
     with WidgetsBindingObserver {
   bool _capturing = false;
+  Timer? _autoShutter;
+  String? _toastText;
+  Timer? _toastTimer;
+  double _pinchBase = 1;
+
+  /// "Aligned" must hold this long before the auto shutter fires.
+  static const _holdBeforeShot = Duration(seconds: 1);
 
   CameraService get _camera => ref.read(cameraServiceProvider);
+  SensoryFeedback get _feedback => ref.read(feedbackProvider);
 
   @override
   void initState() {
@@ -35,6 +50,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   @override
   void dispose() {
+    _autoShutter?.cancel();
+    _toastTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     super.dispose();
@@ -50,28 +67,49 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     }
   }
 
+  void _onInstruction(CoachInstruction? previous, CoachInstruction? next) {
+    if (next == null) {
+      _autoShutter?.cancel();
+      _feedback.stop();
+      return;
+    }
+    if (next.aligned) {
+      if (previous?.aligned != true) {
+        _feedback.announce(next, 'ko');
+        _feedback.aligned();
+        _autoShutter?.cancel();
+        _autoShutter = Timer(_holdBeforeShot, _capture);
+      }
+      return;
+    }
+    _autoShutter?.cancel();
+    _feedback.announce(next, 'ko');
+    _feedback.proximity(next.error);
+  }
+
   Future<void> _capture() async {
     if (_capturing || !_camera.isReady) return;
+    _autoShutter?.cancel();
+    _feedback.stop();
     setState(() => _capturing = true);
     try {
       final file = await _camera.takePicture();
       final saved = await _saveToGallery(file.path);
-      final reference = ref.read(referenceProvider);
       final category = ref.read(categoryProvider);
-      final shot = ShotResult(
-        path: file.path,
-        referencePath: reference.status == ReferenceStatus.set
-            ? reference.path
-            : null,
-        categoryId: category.selectedId,
-        hashtagIds: category.guess?.hashtagIds ?? const [],
-        savedToGallery: saved,
-      );
-      ref.read(lastShotProvider.notifier).set(shot);
-      // A reference and a manual category apply to one shot only.
-      ref.read(referenceProvider.notifier).clear();
+      final tags = [
+        if (category.selectedId != null) category.labelOf(category.selectedId!),
+        for (final id in category.guess?.hashtagIds ?? const <String>[])
+          category.hashtagLabels[id] ?? '#$id',
+      ];
+      // References stay until the user resets them; a manual category pin
+      // applies to one shot only.
       ref.read(categoryProvider.notifier).clearManual();
-      if (mounted) context.push('/result', extra: shot);
+      ref.read(coachingProvider.notifier).reset();
+      _toast(
+        saved
+            ? '갤러리에 저장했어요${tags.isEmpty ? '' : '  ·  ${tags.join(' ')}'}'
+            : '사진을 저장하지 못했어요',
+      );
     } catch (_) {
       _toast('사진을 찍지 못했어요. 다시 눌러 주세요');
     } finally {
@@ -91,18 +129,32 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     }
   }
 
-  Future<void> _pickReference() async {
-    final error = await ref.read(referenceProvider.notifier).pick();
-    if (error != null) _toast(error);
+  Future<void> _addReferences() async {
+    final message = await ref.read(referenceProvider.notifier).addFromGallery();
+    if (message != null) _toast(message);
+  }
+
+  void _onReferenceTap() {
+    if (ref.read(referenceProvider).isEmpty) {
+      _addReferences();
+    } else {
+      showReferenceSheet(context, onAdd: _addReferences);
+    }
+  }
+
+  void _resetReferences() {
+    ref.read(referenceProvider.notifier).clear();
+    ref.read(coachingProvider.notifier).reset();
+    _toast('레퍼런스를 지웠어요');
   }
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+    _toastTimer?.cancel();
+    setState(() => _toastText = message);
+    _toastTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _toastText = null);
+    });
   }
 
   @override
@@ -110,7 +162,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final camera = ref.watch(cameraServiceProvider);
     final reference = ref.watch(referenceProvider);
     final category = ref.watch(categoryProvider);
-    final lastShot = ref.watch(lastShotProvider);
+    final instruction = ref.watch(coachingProvider);
+    ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -122,33 +175,53 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _Preview(camera: camera, onRetry: camera.start),
+                  GestureDetector(
+                    onScaleStart: (_) => _pinchBase = camera.zoom,
+                    onScaleUpdate: (d) {
+                      if (d.pointerCount < 2) return;
+                      camera.setZoom(_pinchBase * d.scale);
+                    },
+                    child: _Preview(camera: camera, onRetry: camera.start),
+                  ),
                   if (camera.isReady) ...[
                     const GridOverlay(),
                     const CenterCrosshair(),
                   ],
-                  // TODO(lead): drive from CoachEngine at integration 1 (22:00).
-                  const Align(
-                    alignment: Alignment(0, -0.55),
-                    child: InstructionBubble(text: '사진 감각, 빌려드릴게요'),
+                  Align(
+                    alignment: const Alignment(0, -0.5),
+                    child: GestureDetector(
+                      // Debug builds: long-press plays a scripted session.
+                      onLongPress: kDebugMode
+                          ? ref.read(coachingProvider.notifier).runDemo
+                          : null,
+                      child: instruction == null
+                          ? const InstructionBubble(text: '사진 감각, 빌려드릴게요')
+                          : InstructionBubble(
+                              text: InstructionText.of(
+                                instruction.key,
+                                instruction.amount,
+                              ),
+                              direction: InstructionText.arrowOf(
+                                instruction.key,
+                              ),
+                              highlight: instruction.aligned,
+                            ),
+                    ),
                   ),
                   SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                       child: Row(
                         children: [
-                          const SizedBox(width: 48),
-                          Expanded(
-                            child: Center(
-                              child: ReferencePill(
-                                state: reference,
-                                onAdd: _pickReference,
-                                onClear: ref
-                                    .read(referenceProvider.notifier)
-                                    .clear,
-                              ),
+                          if (reference.isEmpty)
+                            const SizedBox(width: 48)
+                          else
+                            RoundIconButton(
+                              icon: Icons.close,
+                              onPressed: _resetReferences,
+                              tooltip: '레퍼런스 초기화',
                             ),
-                          ),
+                          const Spacer(),
                           RoundIconButton(
                             icon: switch (camera.flashMode) {
                               FlashMode.auto => Icons.flash_auto,
@@ -164,23 +237,34 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                       ),
                     ),
                   ),
+                  if (_toastText != null)
+                    SafeArea(
+                      child: Align(
+                        alignment: const Alignment(0, -0.82),
+                        child: _Toast(text: _toastText!),
+                      ),
+                    ),
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 16,
+                    bottom: 14,
                     child: Center(
-                      child: ZoomChips(
-                        levels: camera.isReady ? camera.zoomPresets : const [],
-                        selected: camera.zoom,
-                        onSelect: camera.setZoom,
-                      ),
+                      child: camera.isReady
+                          ? ZoomControl(
+                              min: camera.minZoom,
+                              max: camera.maxZoom,
+                              zoom: camera.zoom,
+                              presets: camera.zoomPresets,
+                              onChanged: camera.setZoom,
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
                 ],
               ),
             ),
             Container(
-              color: Colors.black.withValues(alpha: 0.85),
+              color: const Color(0xFF1C1C1E),
               child: CategoryChips(
                 categories: category.categories,
                 selectedId: category.selectedId,
@@ -192,18 +276,41 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             SafeArea(
               top: false,
               child: BottomBar(
-                thumbnailPath: lastShot?.path,
-                onThumbnail: lastShot == null
-                    ? null
-                    : () => context.push('/result', extra: lastShot),
+                reference: ReferenceThumb(
+                  state: reference,
+                  onTap: _onReferenceTap,
+                ),
                 onShutter: camera.isReady ? _capture : null,
                 onFlip: camera.canFlip ? camera.flip : null,
-                armed: false,
+                armed: instruction?.aligned ?? false,
                 busy: _capturing,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _Toast extends StatelessWidget {
+  const _Toast({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
       ),
     );
   }

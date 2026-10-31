@@ -1,4 +1,4 @@
-// Per-shot state: optional reference, category selection, last result.
+// Shooting state: references, category selection.
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -8,17 +8,31 @@ import 'package:image_picker/image_picker.dart';
 import '../../app/providers.dart';
 import '../../core/models.dart';
 
-// ---- Reference (one shot only; cleared after capture) ----
+// ---- References (several allowed; kept until the user resets them) ----
 
-enum ReferenceStatus { none, analyzing, set }
+class ReferenceItem {
+  const ReferenceItem(this.path, this.target);
+
+  final String path;
+  final TargetComposition target;
+}
 
 class ReferenceState {
-  const ReferenceState(this.status, {this.path, this.target});
-  const ReferenceState.none() : this(ReferenceStatus.none);
+  const ReferenceState({
+    this.items = const [],
+    this.activeIndex = 0,
+    this.analyzing = false,
+  });
 
-  final ReferenceStatus status;
-  final String? path;
-  final TargetComposition? target;
+  final List<ReferenceItem> items;
+  final int activeIndex;
+  final bool analyzing;
+
+  bool get isEmpty => items.isEmpty;
+
+  /// The reference whose composition is the coaching target.
+  ReferenceItem? get active =>
+      items.isEmpty ? null : items[activeIndex.clamp(0, items.length - 1)];
 }
 
 final referenceProvider = NotifierProvider<ReferenceNotifier, ReferenceState>(
@@ -27,36 +41,47 @@ final referenceProvider = NotifierProvider<ReferenceNotifier, ReferenceState>(
 
 class ReferenceNotifier extends Notifier<ReferenceState> {
   @override
-  ReferenceState build() => const ReferenceState.none();
+  ReferenceState build() => const ReferenceState();
 
-  /// Returns a user-facing error message, or null on success/cancel.
-  Future<String?> pick() async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2048,
+  /// Picks one or more photos. Returns a user-facing message, or null.
+  Future<String?> addFromGallery() async {
+    final files = await ImagePicker().pickMultiImage(maxWidth: 2048);
+    if (files.isEmpty) return null;
+    state = ReferenceState(
+      items: state.items,
+      activeIndex: state.activeIndex,
+      analyzing: true,
     );
-    if (file == null) return null;
-    state = ReferenceState(ReferenceStatus.analyzing, path: file.path);
-    try {
-      final target = await ref
-          .read(referenceAnalyzerProvider)
-          .analyze(file.path);
-      state = ReferenceState(
-        ReferenceStatus.set,
-        path: file.path,
-        target: target,
-      );
-      return null;
-    } on NoPersonException catch (e) {
-      state = const ReferenceState.none();
-      return e.message;
-    } catch (_) {
-      state = const ReferenceState.none();
-      return '레퍼런스 사진을 분석하지 못했어요';
+    final analyzer = ref.read(referenceAnalyzerProvider);
+    final added = <ReferenceItem>[];
+    var skipped = 0;
+    for (final file in files) {
+      try {
+        added.add(ReferenceItem(file.path, await analyzer.analyze(file.path)));
+      } catch (_) {
+        skipped++;
+      }
     }
+    state = ReferenceState(
+      items: [...state.items, ...added],
+      // The first newly added photo becomes the active target.
+      activeIndex: added.isEmpty ? state.activeIndex : state.items.length,
+    );
+    if (skipped == 0) return null;
+    return added.isEmpty ? '사람이 보이는 사진을 골라 주세요' : '$skipped장은 사람을 찾지 못해서 뺐어요';
   }
 
-  void clear() => state = const ReferenceState.none();
+  void select(int index) =>
+      state = ReferenceState(items: state.items, activeIndex: index);
+
+  void remove(int index) {
+    final items = [...state.items]..removeAt(index);
+    var active = state.activeIndex;
+    if (index < active || active >= items.length) active = active - 1;
+    state = ReferenceState(items: items, activeIndex: active.clamp(0, 99));
+  }
+
+  void clear() => state = const ReferenceState();
 }
 
 // ---- Category (auto guess + suggestions + manual pin) ----
@@ -144,33 +169,4 @@ class CategoryNotifier extends Notifier<CategoryState> {
       state = state.copyWith(manualId: () => state.manualId == id ? null : id);
 
   void clearManual() => state = state.copyWith(manualId: () => null);
-}
-
-// ---- Last shot ----
-
-class ShotResult {
-  const ShotResult({
-    required this.path,
-    this.referencePath,
-    this.categoryId,
-    this.hashtagIds = const [],
-    required this.savedToGallery,
-  });
-
-  final String path;
-  final String? referencePath;
-  final String? categoryId;
-  final List<String> hashtagIds;
-  final bool savedToGallery;
-}
-
-final lastShotProvider = NotifierProvider<LastShotNotifier, ShotResult?>(
-  LastShotNotifier.new,
-);
-
-class LastShotNotifier extends Notifier<ShotResult?> {
-  @override
-  ShotResult? build() => null;
-
-  void set(ShotResult shot) => state = shot;
 }

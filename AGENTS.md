@@ -7,7 +7,7 @@
 ## 1. Product
 - One line: a camera app that turns the owner's sense of a good shot into instructions a non-photographer can follow with ears, hands and feet ("one step back", "lower the phone by one fist"), delivered as voice, beeps and vibration, one at a time.
 - Contest theme keyword: **감각 (sense)**. Shown on the first screen: "사진 감각, 빌려드릴게요".
-- Target composition source: ① the **reference photo** the user attached for this shot (highest priority) ② otherwise the **per-category good-composition model** built from photos the team curated.
+- Target composition source: ① the active **reference photo** (highest priority; the user may load several and they persist until reset) ② otherwise the **per-category good-composition model** built from photos the team curated.
 - Deliverable: Android APK. iOS is out of scope.
 
 ## 2. Stack (pinned)
@@ -113,12 +113,13 @@ abstract class FeedbackService { void announce(CoachInstruction i, String lang);
 - Model files: bundled `assets/clip/vision_q8.onnx` (copied once to the app directory), downloaded `<appDir>/models/vision_big.onnx`. Same inputs/outputs.
 
 ## 6. UX rules (from the UI mock)
-- Camera screen: X and flash at top, 3×3 grid, center crosshair, **one instruction bubble + direction arrow** (upper third), zoom chips `.5 / 1x / 3` (hide unsupported levels), category chips at the bottom (primary filled, 2 suggestions with a dot, tap = manual pin), thumbnail · shutter · flip.
+- Camera screen (matches the mock): X (reset references, shown only when references exist) and flash at top, 3×3 grid, dashed center lines with a ringed dot, **one instruction bubble + direction arrow** (upper third), zoom pill `.5 / 1x / 3` that opens a **continuous slider** (every supported level) when dragged sideways, pinch zoom on the preview, category bar evenly spread (selected = rounded fill, suggestions = yellow dot, tap = manual pin), bottom row = **reference slot** · shutter · flip.
 - **Do not draw a person outline.**
-- Reference: top-center pill "레퍼런스 추가" → when set, "레퍼런스 사용 중 ✕" (✕ = clear). Auto-clears after a shot, together with any manual category pin.
+- References: tap the bottom-left slot to pick **one or more** photos. The active one (yellow border) is the target; with several, a sheet lets the user switch, add, remove or clear. **References persist across shots** and are removed only by X / "모두 지우기".
+- **No result screen.** After a shot the photo is saved to the GUDORY album and a toast shows the category and hashtags. A manual category pin is cleared after each shot.
 - Auto shutter: when `aligned` holds for 1.0 s → vibrate + capture. The shutter button always works.
 - No empty buttons or "coming soon" screens; drop what does not work. UI text in Korean, no photography jargon ("틸트" → "폰 윗부분을 앞으로").
-- Tokens: background `#000000`, bubble `rgba(0,0,0,0.55)` radius 20, selected chip `rgba(255,255,255,0.18)`, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 18 / chip 15.
+- Tokens: background `#000000`, bubble `#333336` at ~78% radius 24, category bar `#1C1C1E`, selected chip `rgba(255,255,255,0.18)` radius 16, text `#FFFFFF`, accent (1x) `#FFD60A`, font Pretendard (system fallback), body 16 / instruction 17 / chip 15.
 
 ## 7. Security and data
 - Lablup key and Vercel tokens never go into the app or the repo. LLM calls only from `api/`, env vars `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
