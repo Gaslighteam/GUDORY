@@ -1,17 +1,25 @@
-# data/ — curated good photos per category (Bomin)
+# data/ — training photos for 추천 모드 (Bomin)
 
-- `photos/` originals. **Not committed** (.gitignore). File names `<categoryId>_<n>.jpg` (e.g. `sea_001.jpg`)
-- `demo_refs/` 3–5 reference photos for the demo video. Not committed. Samples that ship in the app go to `app/assets/demo/` (lead)
-- `labels.csv` labels. **The only file committed here**
+Nothing in this folder is committed except this README (.gitignore).
 
-## labels.csv
+| Path | What |
+|---|---|
+| `unsplash/raw/` | Unsplash Lite Dataset 1.4.0 (TSV files). Download: https://unsplash.com/data/lite/latest |
+| `unsplash/candidates.csv` | one-person candidates picked by `tools/unsplash_candidates.py` |
+| `photos/unsplash/<id>.jpg` | downloaded candidates (short side 640 px) |
+| `photos/team/` | optional photos taken by team members (same rules: one person, full body) |
+| `demo_refs/` | 3–5 reference photos for the demo video, **team members only** |
+
+## Steps
+```bash
+python tools/unsplash_candidates.py --download 3000   # from the repo root
 ```
-file,primary,hashtags,person_count,orientation,notes
-sea_001.jpg,sea,backlight;fullbody;negative_space,1,portrait,
-```
-- `primary`: one category id from `app/assets/categories.json`
-- `hashtags`: hashtag ids separated by `;`
-- `orientation`: `portrait` / `landscape`
-- Only photos taken by team members. No internet photos. Prefer one person, portrait, full body.
+1. Look through `photos/unsplash/` and **delete** photos with a bad composition, two or more people, or no full body. No label file: orientation comes from the image size, and `build_assets.py` checks one person / full body with pose detection.
+2. Tell Seojun → `build_assets.py` → `app/assets/recommend.json`. Check the per-orientation, per-level counts in `tools/report.md`.
 
-Full guide: `prompts/bomin-data-guide.md`
+## Rules
+- Unsplash Lite terms (`unsplash/raw/TERMS.md`): storing and training are allowed; **publishing any part of the data is not**. Only aggregated numbers (clusters, medians) go into the app.
+- **Pexels is not allowed** (its terms forbid automated collection for machine learning).
+- No other internet photos.
+
+Old guide (categories, labels — outdated): `prompts/bomin-data-guide.md`

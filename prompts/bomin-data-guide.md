@@ -1,5 +1,7 @@
 # Bomin — categories and data guide (no AI prompt needed; one optional prompt at the end)
 
+> ⚠️ **Outdated since the 2026-10-31 pivot** (no categories, hashtags or labels.csv; training data = Unsplash Lite). See `data/README.md` and `AGENTS.md`.
+
 ## Deliverables and deadlines
 | Deadline | Deliverable | Hand to |
 |---|---|---|
