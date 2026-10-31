@@ -1,14 +1,19 @@
 // Cross-module wiring. Owned by the team lead.
 // Each provider starts with a Fake (or null) and is switched to the real
 // module when it lands.
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/contracts.dart';
+import '../core/models.dart';
 import '../features/camera/camera_service.dart';
-import '../features/camera/fakes/fake_recommender.dart';
+import '../features/camera/framing.dart';
+import '../features/camera/shot_orientation.dart';
 import '../features/coach/coach_engine.dart';
 import '../features/coach/pose_source.dart';
 import '../features/coach/reference_analyzer.dart';
+import '../features/scene/recommender.dart';
 
 /// Live camera frames for pose (Eungyu) and scene (Seojun) analysis.
 final frameBusProvider = Provider<FrameBus>(
@@ -35,5 +40,28 @@ final coachEngineProvider = Provider<CoachEngine?>(
   (ref) => DefaultCoachEngine(),
 );
 
-/// TODO(lead): switch to Seojun's Recommender when feat/scene lands.
-final recommenderProvider = Provider<Recommender>((ref) => FakeRecommender());
+/// Seojun's CLIP background matcher over recommend.json. It needs the visible
+/// preview crop and which way the phone is held; it falls back to the level
+/// median when the model or geometry is unavailable.
+final recommenderProvider = Provider<Recommender>((ref) {
+  final recommender = SceneRecommender(
+    viewForFrame: (_, orientation) {
+      final crop = ref.read(visibleCropProvider);
+      final left = crop.left.clamp(0.0, 1.0);
+      final top = crop.top.clamp(0.0, 1.0);
+      return SceneView(
+        quarterTurns: orientation == ShotOrientation.portrait
+            ? 0
+            : ref.read(heldOrientationProvider).quarterTurns,
+        left: left,
+        top: top,
+        width: crop.width.clamp(0.01, 1.0 - left),
+        height: crop.height.clamp(0.01, 1.0 - top),
+      );
+    },
+  );
+  // Load the model off the first recommendation's critical path.
+  unawaited(recommender.warmUp());
+  ref.onDispose(recommender.dispose);
+  return recommender;
+});
