@@ -1,0 +1,4 @@
+# Python 3.12; approved Tools-only dependencies, verified in this milestone.
+mediapipe==1.2.0
+numpy==2.5.4
+pillow==13.0.0
