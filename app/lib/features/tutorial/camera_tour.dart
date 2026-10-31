@@ -107,7 +107,16 @@ class _CameraTourState extends State<CameraTour>
       return null;
     }
     final topLeft = me.globalToLocal(target.localToGlobal(Offset.zero));
-    return (topLeft & target.size).inflate(6);
+    // Keep the ring clear of the status and navigation bars and the screen
+    // edges, or it gets cut off (e.g. around the full-width shutter row).
+    final pad = MediaQuery.paddingOf(context);
+    final safe = Rect.fromLTRB(
+      pad.left + 4,
+      pad.top + 4,
+      me.size.width - pad.right - 4,
+      me.size.height - pad.bottom - 4,
+    );
+    return (topLeft & target.size).inflate(6).intersect(safe);
   }
 
   void _measure() {

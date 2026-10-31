@@ -1,5 +1,5 @@
-// Settings: guidance (language, sounds, vibration), screen overlays, shooting
-// facts, help and app info. Pops with 'tour' to replay the camera tour.
+// Settings: guidance (language, sounds, vibration), screen overlays, saving
+// info, help and app info. Pops with 'tour' to replay the camera tour.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +34,10 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        // Clear the navigation bar (edge-to-edge) at the end of the list.
+        padding: EdgeInsets.only(
+          bottom: 32 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
@@ -110,11 +113,6 @@ class SettingsScreen extends ConsumerWidget {
           const _Section('촬영'),
           const _Group(
             children: [
-              _Info(
-                title: '셔터음',
-                subtitle: '기본 카메라처럼 무음 모드에서도 소리가 나요.',
-                value: '항상 켜짐',
-              ),
               _Info(
                 title: '저장 위치',
                 subtitle: '찍은 사진은 원본 화질 그대로 저장돼요.',
