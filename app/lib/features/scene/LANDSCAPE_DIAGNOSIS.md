@@ -1,8 +1,12 @@
 # Landscape diagnosis and preprocessing follow-up
 
-Draft PR #37: https://github.com/Gaslighteam/GUDORY/pull/37.
+Original Draft PR #37: https://github.com/Gaslighteam/GUDORY/pull/37.
 Initial commit: `6073f7dc0ebf5e214b25478bce0d71c3159eaba0`.
-The PR must remain Draft. This report supersedes the initial statement that no
+PR #37 was marked ready and merged externally while the follow-up was being
+tested; the Scene agent did not change its status or merge it. Verified source
+follow-up: `364a7c258afcc77209b4147fb6d4c4bc62425fc8`. A separate follow-up Draft
+on the same feat/scene branch is needed because a merged PR cannot be updated.
+That follow-up must remain Draft. This report supersedes the initial statement that no
 successful landscape inference had been observed; older results are historical.
 
 ## Evidence and exclusions
@@ -94,6 +98,10 @@ multiply 16777619 modulo 2^32). No reference binary/cache is committed.
 - Full Flutter analysis passed with no issues; the updated diagnostic Android
   APK built successfully. All 297 tests passed again after sharing the parity
   fixture gate between tests and the diagnostic.
+- Current main (including the external PR #37 merge and the lead's voice-removal
+  changes) was subsequently integrated without conflicts. The 297-test suite and
+  analysis passed again; dependency metadata was reconciled offline with the
+  existing lockfile enforced and no dependency declarations changed locally.
 - The corrected APK passed `SCENE PREPROCESS PARITY synthetic_rgb=9/9` on the
   physical SM-S937N / Android 16. Repeated indoor inference after the resize
   correction and street/open-sky quality at levels
