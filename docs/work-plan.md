@@ -10,7 +10,9 @@ Video, upload, README and the final push all have to fit in the 90 minutes after
 
 | Decision | In the plan |
 |---|---|
-| Optional reference photo per shot (reference wins when present, auto-clear after the shot, clear button, visible "in use" state) | Top-center "reference" pill + badge on the camera screen. Target source = `reference` > `category` |
+| Optional references (several at once, persist until reset with X; reference wins when present) | Bottom-left reference slot (active photo, count badge, sheet to switch/add/remove) + X to reset. Target source = active `reference` > `category` |
+| No result / "shoot again" screen | Capture saves to the album and shows a toast with category and hashtags |
+| Zoom: every supported level | Presets + drag-to-slide continuous slider + pinch |
 | Strengthen CLIP with team-curated good photos per category | `data/` photos + `labels.csv` → `tools/build_assets.py` → `keywords.json` (CLIP centroids) + `compositions.json` (good composition numbers per category) |
 | Offline = compressed model bundled in the app, online = larger model downloaded and run on the phone | `ModelManager`: bundled q8 (~88 MB) by default; when online, download fp16/fp32, cache it, prefer it. Photos never leave the phone |
 | Auto category + suggested categories, user can tap to change | Bottom chips: primary highlighted, 2 suggestions with a dot, tap = manual pin (released after the shot) |

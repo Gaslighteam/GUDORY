@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
@@ -18,22 +20,12 @@ class InstructionBubble extends StatelessWidget {
   /// Aligned state: accent border.
   final bool highlight;
 
-  static const _icons = {
-    ArrowDirection.left: Icons.west,
-    ArrowDirection.right: Icons.east,
-    ArrowDirection.up: Icons.north,
-    ArrowDirection.down: Icons.south,
-    ArrowDirection.back: Icons.keyboard_double_arrow_down,
-    ArrowDirection.forward: Icons.keyboard_double_arrow_up,
-  };
-
   @override
   Widget build(BuildContext context) {
-    final icon = _icons[direction];
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      constraints: const BoxConstraints(maxWidth: 320),
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+      constraints: const BoxConstraints(maxWidth: 300),
+      padding: const EdgeInsets.fromLTRB(28, 14, 28, 10),
       decoration: BoxDecoration(
         color: AppColors.bubble,
         borderRadius: BorderRadius.circular(AppRadius.bubble),
@@ -50,16 +42,30 @@ class InstructionBubble extends StatelessWidget {
             style: const TextStyle(
               color: AppColors.text,
               fontSize: AppText.instruction,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               height: 1.35,
             ),
           ),
-          if (icon != null) ...[
-            const SizedBox(height: 6),
-            Icon(icon, color: AppColors.text, size: 30),
-          ],
+          if (direction != ArrowDirection.none) _arrow(),
         ],
       ),
+    );
+  }
+
+  Widget _arrow() {
+    // One long arrow glyph, rotated; back/forward use a double chevron.
+    final (IconData icon, double turns) = switch (direction) {
+      ArrowDirection.right => (Icons.arrow_right_alt, 0.0),
+      ArrowDirection.left => (Icons.arrow_right_alt, 0.5),
+      ArrowDirection.up => (Icons.arrow_right_alt, -0.25),
+      ArrowDirection.down => (Icons.arrow_right_alt, 0.25),
+      ArrowDirection.back => (Icons.keyboard_double_arrow_down, 0.0),
+      ArrowDirection.forward => (Icons.keyboard_double_arrow_up, 0.0),
+      ArrowDirection.none => (Icons.circle, 0.0),
+    };
+    return Transform.rotate(
+      angle: turns * 2 * math.pi,
+      child: Icon(icon, color: AppColors.text, size: 40),
     );
   }
 }

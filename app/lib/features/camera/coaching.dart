@@ -34,7 +34,8 @@ class CoachingNotifier extends Notifier<CoachInstruction?> {
   /// Reference wins; otherwise the selected category's good composition.
   TargetComposition _target() {
     final reference = ref.read(referenceProvider);
-    if (reference.target != null) return reference.target!;
+    final active = reference.active;
+    if (active != null) return active.target;
     final library = ref.read(compositionLibraryProvider);
     final categoryId = ref.read(categoryProvider).selectedId;
     if (library != null && categoryId != null) {
