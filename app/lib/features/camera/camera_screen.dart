@@ -14,9 +14,11 @@ import '../feedback/instruction_text.dart';
 import '../feedback/sensory_feedback.dart';
 import 'camera_service.dart';
 import 'coaching.dart';
+import 'shot_orientation.dart';
 import 'shot_state.dart';
 import 'widgets/controls.dart';
 import 'widgets/instruction_bubble.dart';
+import 'widgets/mode_controls.dart';
 import 'widgets/overlays.dart';
 import 'widgets/reference_sheet.dart';
 
@@ -155,7 +157,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final camera = ref.watch(cameraServiceProvider);
     final reference = ref.watch(referenceProvider);
     final instruction = ref.watch(coachingProvider);
+    final mode = ref.watch(modeProvider);
+    final held = ref.watch(heldOrientationProvider);
+    final turns = held.quarterTurns;
+    final custom = mode.mode == ShootMode.custom;
     ref.listen<CoachInstruction?>(coachingProvider, _onInstruction);
+    ref.listen<HeldOrientation>(
+      heldOrientationProvider,
+      (_, next) => camera.setHeldOrientation(next),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -181,27 +191,31 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                   ],
                   Align(
                     alignment: const Alignment(0, -0.5),
-                    child: GestureDetector(
-                      // Debug builds: long-press plays a scripted session,
-                      // double-tap opens the pose overlay.
-                      onLongPress: kDebugMode
-                          ? ref.read(coachingProvider.notifier).runDemo
-                          : null,
-                      onDoubleTap: kDebugMode
-                          ? () => context.push('/debug/pose')
-                          : null,
-                      child: instruction == null
-                          ? const InstructionBubble(text: '사진 감각, 빌려드릴게요')
-                          : InstructionBubble(
-                              text: InstructionText.of(
-                                instruction.key,
-                                instruction.amount,
+                    child: AnimatedRotation(
+                      turns: turns / 4,
+                      duration: const Duration(milliseconds: 250),
+                      child: GestureDetector(
+                        // Debug builds: long-press plays a scripted session,
+                        // double-tap opens the pose overlay.
+                        onLongPress: kDebugMode
+                            ? ref.read(coachingProvider.notifier).runDemo
+                            : null,
+                        onDoubleTap: kDebugMode
+                            ? () => context.push('/debug/pose')
+                            : null,
+                        child: instruction == null
+                            ? const InstructionBubble(text: '사진 감각, 빌려드릴게요')
+                            : InstructionBubble(
+                                text: InstructionText.of(
+                                  instruction.key,
+                                  instruction.amount,
+                                ),
+                                direction: InstructionText.arrowOf(
+                                  instruction.key,
+                                ),
+                                highlight: instruction.aligned,
                               ),
-                              direction: InstructionText.arrowOf(
-                                instruction.key,
-                              ),
-                              highlight: instruction.aligned,
-                            ),
+                      ),
                     ),
                   ),
                   // Pinned to the top: inside an expanded Stack an unpositioned
@@ -216,15 +230,22 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                         child: Row(
                           children: [
-                            if (reference.isEmpty)
-                              const SizedBox(width: _topButton)
-                            else
+                            ModeToggle(
+                              mode: mode.mode,
+                              onChanged: ref
+                                  .read(modeProvider.notifier)
+                                  .setMode,
+                            ),
+                            if (custom && !reference.isEmpty) ...[
+                              const SizedBox(width: 10),
                               RoundIconButton(
                                 icon: Icons.close,
                                 onPressed: _resetReferences,
                                 size: _topButton,
                                 tooltip: '레퍼런스 초기화',
+                                quarterTurns: turns,
                               ),
+                            ],
                             const Spacer(),
                             RoundIconButton(
                               icon: switch (camera.flashMode) {
@@ -237,6 +258,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                   : null,
                               size: _topButton,
                               tooltip: '플래시',
+                              quarterTurns: turns,
                             ),
                           ],
                         ),
@@ -269,13 +291,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                 ],
               ),
             ),
+            if (!custom)
+              LevelBar(
+                level: mode.level,
+                onChanged: ref.read(modeProvider.notifier).setLevel,
+              ),
             SafeArea(
               top: false,
               child: BottomBar(
-                reference: ReferenceThumb(
-                  state: reference,
-                  onTap: _onReferenceTap,
-                ),
+                reference: custom
+                    ? ReferenceThumb(state: reference, onTap: _onReferenceTap)
+                    : const SizedBox(width: 60),
+                quarterTurns: turns,
                 onShutter: camera.isReady ? _capture : null,
                 onFlip: camera.canFlip ? camera.flip : null,
                 armed: instruction?.aligned ?? false,

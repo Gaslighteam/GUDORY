@@ -3,10 +3,12 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/contracts.dart';
 import '../../core/models.dart';
+import 'shot_orientation.dart';
 
 final cameraServiceProvider = Provider<CameraService>((ref) {
   final service = CameraService();
@@ -27,6 +29,7 @@ class CameraService extends ChangeNotifier implements FrameBus {
   double maxZoom = 1;
   double zoom = 1;
   FlashMode flashMode = FlashMode.off;
+  HeldOrientation _held = HeldOrientation.portrait;
 
   CameraController? get controller => _controller;
   bool get isReady => _controller?.value.isInitialized ?? false;
@@ -37,10 +40,12 @@ class CameraService extends ChangeNotifier implements FrameBus {
       _cameras.any((c) => c.lensDirection == CameraLensDirection.front) &&
       _cameras.any((c) => c.lensDirection == CameraLensDirection.back);
 
-  /// Zoom presets shown as chips; only levels the device supports.
+  /// Zoom presets `.6 / 1x / 2 / 3`; only levels the device supports.
+  /// (Ultra-wide phones report ~0.6 as the minimum ratio.)
   List<double> get zoomPresets => [
-    if (minZoom <= 0.55) 0.5,
+    if (minZoom <= 0.61) 0.6,
     1,
+    if (maxZoom >= 2) 2,
     if (maxZoom >= 3) 3,
   ];
 
@@ -77,6 +82,7 @@ class CameraService extends ChangeNotifier implements FrameBus {
       maxZoom = await controller.getMaxZoomLevel();
       zoom = 1.0.clamp(minZoom, maxZoom);
       await controller.setFlashMode(flashMode);
+      await _applyCaptureOrientation(controller);
       await _startStream(controller);
       error = null;
     } catch (e) {
@@ -112,6 +118,28 @@ class CameraService extends ChangeNotifier implements FrameBus {
     zoom = level.clamp(minZoom, maxZoom);
     await controller.setZoomLevel(zoom);
     _notify();
+  }
+
+  /// The UI is portrait-locked, so the saved photo's orientation follows how
+  /// the phone is held (landscape when turned sideways).
+  Future<void> setHeldOrientation(HeldOrientation held) async {
+    _held = held;
+    final controller = _controller;
+    if (controller != null) await _applyCaptureOrientation(controller);
+  }
+
+  Future<void> _applyCaptureOrientation(CameraController controller) async {
+    final orientation = !_held.isLandscape
+        ? DeviceOrientation.portraitUp
+        // Top of the phone to the left = landscapeLeft (Android ROTATION_90).
+        : _held.quarterTurns > 0
+        ? DeviceOrientation.landscapeLeft
+        : DeviceOrientation.landscapeRight;
+    try {
+      await controller.lockCaptureOrientation(orientation);
+    } on CameraException {
+      // Not fatal: the photo keeps the default orientation.
+    }
   }
 
   Future<void> cycleFlash() async {
