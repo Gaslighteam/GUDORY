@@ -25,6 +25,7 @@ class SensoryFeedback implements FeedbackService {
   String? _lastSpoken;
   DateTime _lastSpokenAt = DateTime(0);
   bool _hasVibrator = false;
+  String _ttsLang = 'ko';
 
   bool voiceOn = true;
   bool beepOn = true;
@@ -48,16 +49,25 @@ class SensoryFeedback implements FeedbackService {
 
   @override
   void announce(CoachInstruction instruction, String lang) {
+    say(InstructionText.of(instruction.key, instruction.amount, lang), lang);
+  }
+
+  /// Speaks [text] in [lang] ('ko' / 'en' / 'ja'); the same sentence is not
+  /// repeated within 4 s.
+  Future<void> say(String text, String lang) async {
     if (!voiceOn) return;
-    final text = InstructionText.of(instruction.key, instruction.amount, lang);
     final now = DateTime.now();
     if (text == _lastSpoken && now.difference(_lastSpokenAt) < _repeatAfter) {
       return;
     }
     _lastSpoken = text;
     _lastSpokenAt = now;
-    _tts.stop();
-    _tts.speak(text);
+    await _tts.stop();
+    if (lang != _ttsLang) {
+      _ttsLang = lang;
+      await _tts.setLanguage(ttsLocales[lang] ?? 'ko-KR');
+    }
+    await _tts.speak(text);
   }
 
   /// Beeps speed up as [error] approaches 1.0 (parking-sensor style).
