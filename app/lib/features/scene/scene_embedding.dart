@@ -8,6 +8,7 @@ import 'model_manager.dart';
 import 'nv21_frame.dart';
 import 'person_mask.dart';
 import 'preprocess.dart';
+import 'spatial_features.dart';
 
 /// Scalar runtime evidence only. Never carries camera bytes or mask arrays.
 class SceneEmbeddingTrace {
@@ -81,11 +82,12 @@ class SceneView {
 }
 
 class SceneEmbedding {
-  SceneEmbedding(List<double> values, this.variant, {this.trace})
+  SceneEmbedding(List<double> values, this.variant, {this.trace, this.spatial})
     : values = List.unmodifiable(normalizeClipEmbedding(values));
   final List<double> values;
   final String variant;
   final SceneEmbeddingTrace? trace;
+  final SpatialFeatures? spatial;
 }
 
 abstract class SceneEmbedder {
@@ -95,13 +97,17 @@ abstract class SceneEmbedder {
 }
 
 class NativeSceneEmbedder implements SceneEmbedder {
-  NativeSceneEmbedder({ModelManager? modelManager, PersonMasker? masker})
-    : _manager = modelManager ?? BundledSceneModelManager(),
-      _masker = masker ?? PersonMasker() {
+  NativeSceneEmbedder({
+    ModelManager? modelManager,
+    PersonMasker? masker,
+    this.includeSpatial = false,
+  }) : _manager = modelManager ?? BundledSceneModelManager(),
+       _masker = masker ?? PersonMasker() {
     _runner = ClipRunner(modelManager: _manager);
   }
   final ModelManager _manager;
   final PersonMasker _masker;
+  final bool includeSpatial;
   late final ClipRunner _runner;
   @override
   Future<void> warmUp() => _runner.warmUp();
@@ -125,11 +131,12 @@ class NativeSceneEmbedder implements SceneEmbedder {
         ),
       );
     }
-    final prepared = await compute(prepareRecommendationInput, (
-      data,
-      mask,
-      view,
-    ));
+    final prepared = await compute(
+      includeSpatial
+          ? prepareSpatialRecommendationInput
+          : prepareRecommendationInput,
+      (data, mask, view),
+    );
     try {
       await _runner.warmUp();
     } catch (_) {
@@ -141,6 +148,7 @@ class NativeSceneEmbedder implements SceneEmbedder {
         result.embedding,
         _runner.activeVariant,
         trace: prepared.trace,
+        spatial: prepared.spatial,
       );
     } catch (_) {
       throw SceneFailure('clip/inference-failed', trace: prepared.trace);
@@ -161,13 +169,23 @@ Float32List prepareRecommendationPixels(
 ) => prepareRecommendationInput(job).pixels;
 
 class PreparedRecommendationInput {
-  const PreparedRecommendationInput(this.pixels, this.trace);
+  const PreparedRecommendationInput(this.pixels, this.trace, {this.spatial});
   final Float32List pixels;
   final SceneEmbeddingTrace trace;
+  final SpatialFeatures? spatial;
 }
 
 PreparedRecommendationInput prepareRecommendationInput(
   (Nv21FrameData, PersonMask, SceneView) job,
+) => _prepareRecommendationInput(job, false);
+
+PreparedRecommendationInput prepareSpatialRecommendationInput(
+  (Nv21FrameData, PersonMask, SceneView) job,
+) => _prepareRecommendationInput(job, true);
+
+PreparedRecommendationInput _prepareRecommendationInput(
+  (Nv21FrameData, PersonMask, SceneView) job,
+  bool includeSpatial,
 ) {
   final (frame, mask, view) = job;
   view.validate(
@@ -205,6 +223,17 @@ PreparedRecommendationInput prepareRecommendationInput(
   }
 
   final image = shot(raw), person = shot(foreground);
+  // Extract from the SAME shot before mean filling; do not crop/rotate again.
+  final spatial = includeSpatial
+      ? extractSpatial(
+          image.getBytes(order: img.ChannelOrder.rgb),
+          image.width,
+          image.height,
+          person.map((p) => p.r >= 128 ? 1.0 : 0.0).toList(),
+          person.width,
+          person.height,
+        )
+      : null;
   final sums = [0.0, 0.0, 0.0];
   for (final p in image) {
     sums[0] += p.r;
@@ -240,5 +269,9 @@ PreparedRecommendationInput prepareRecommendationInput(
   if (filled == pixelCount) {
     throw SceneFailure('mask/full', trace: trace);
   }
-  return PreparedRecommendationInput(clipImagePixels(image), trace);
+  return PreparedRecommendationInput(
+    clipImagePixels(image),
+    trace,
+    spatial: spatial,
+  );
 }
