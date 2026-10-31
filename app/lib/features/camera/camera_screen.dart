@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/theme.dart';
@@ -222,9 +223,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                           turns: turns / 4,
                           duration: const Duration(milliseconds: 250),
                           child: GestureDetector(
-                            // Debug builds: long-press plays a scripted session.
+                            // Debug builds: long-press plays a scripted session,
+                            // double-tap opens the pose overlay.
                             onLongPress: kDebugMode
                                 ? ref.read(coachingProvider.notifier).runDemo
+                                : null,
+                            onDoubleTap: kDebugMode
+                                ? () => context.push('/debug/pose')
                                 : null,
                             child: instruction == null
                                 ? const InstructionBubble(text: '사진 감각, 빌려드릴게요')

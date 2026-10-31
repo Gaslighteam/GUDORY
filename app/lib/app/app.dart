@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/camera/camera_screen.dart';
+import 'debug_pose_route.dart';
 import 'theme.dart';
 
 final _router = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => const CameraScreen()),
-    // Debug routes are added here by the lead as modules land:
-    // '/debug/pose' (coach), '/debug/scene' (scene)
+    // Debug routes are added here by the lead as modules land.
+    GoRoute(
+      path: '/debug/pose',
+      builder: (context, state) => const DebugPoseRoute(),
+    ),
   ],
 );
 
