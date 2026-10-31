@@ -27,7 +27,7 @@ app/lib/app/                               router, theme, tokens — lead
 app/lib/features/camera/, feedback/        Taeho
 app/lib/features/coach/                    Eungyu
 app/lib/features/scene/                    Seojun
-app/assets/                                recommend.json (tools output) / *.onnx (gitignored)
+app/assets/                                recommend.json, recommend_v2.json (tools output) / *.onnx (gitignored)
 tools/                                     Seojun (unsplash_candidates.py: Bomin)
 data/                                      Bomin (photos/, unsplash/, openimages/ gitignored, nothing but README committed)
 api/                                       Taeho
@@ -115,7 +115,8 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 - Head reference (Eungyu and Seojun use **the same formulas**, identical constants). Only **both shoulders** (visibility ≥ 0.5) are required. Nose and eyes use the **estimated coordinates the pose model always returns, regardless of their visibility score** — on a back view or profile they land near the back/side of the head, which is close enough, so **back views and profiles are kept**:
   - eye line y (`cy`) = mean of both eyes' y
   - head top y = nose y − 0.5 × (shoulder-mid y − nose y)
-  - Person count (Seojun): `PoseLandmarker(num_poses=2)` plus a person detector; more than one person → drop (already in `tools/pose_analysis.py`).
+  - Person count (Seojun): `PoseLandmarker(num_poses=2)` plus a person detector; more than one person → drop (`tools/pose_analysis.py`). Exactly one pose; the main person is the top detector box (score ≥ 0.3); another person box at least 15% of the main person's height is a second subject → drop; smaller ones are background passers-by and stay.
+  - Training-data filters (Python only): head top or nose outside the frame, main person under 20% of the frame height, a hand longer than 2× the head-to-shoulder height (hand in front of the lens, lying or folded bodies), and a person crop that CLIP scores ≥ 0.85 as a painting/statue/poster/mannequin/mirror (`tools/person_prompts.npz`).
 - Framing and body span (same formulas on both sides, written once in `features/coach/` and ported to Python):
 
   | Framing | Anchor (lowest visible, visibility ≥ 0.5) | Span | Real span L |
@@ -153,6 +154,7 @@ abstract class FeedbackService { void proximity(double error); void aligned(); v
 - Preprocessing: resize short side to 224 → center crop 224×224 → RGB/255 → mean [0.48145466,0.4578275,0.40821073], std [0.26862954,0.26130258,0.27577711] → `pixel_values [1,3,224,224] float32` → `image_embeds [1,512]` → L2 normalize. Same in `tools/` and the app.
 - Fill person-mask pixels with the image mean color before running CLIP (we compare **backgrounds**).
 - Recommend: live background embedding → cosine with clusters of the same orientation → top 3 clusters that have the chosen level (else the nearest level) → framing = the top cluster's `f`; average the `lv` medians of clusters with that framing, weighted by cosine × n → `TargetComposition(source: 'recommend:<level>')`. CLIP failure → `fallback`.
+- **Recommend v2** (`recommend_v2.json`, `tools/train_recommender_v2.py`, `features/scene/composition_model.dart`; used when present, any failure → the v1 path above): PCA(k=32) of the same background embedding + one-hot(orientation, level) → framing (multinomial logistic), offset `|cx − 0.5|` and `cy` (ridge), `h` from an (orientation, level, framing) table. **Side is not learned:** `cx = 0.5 ± offset` on the side of the person-mask centroid (`SceneEmbeddingTrace.personX`); photo rules may override it with the facing direction. Trained on CADB `human` photos weighted by composition score (`docs/cadb.md`, `tools/report_v2.md`). `source: 'recommend-v2:<level>'`, `neighbors` = training photos.
 - Model files: bundled `assets/clip/vision_q8.onnx` (copied once to the app directory), downloaded `<appDir>/models/vision_big.onnx`. Same inputs/outputs.
 
 ### Training data

@@ -36,6 +36,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/recommend.json
+    - assets/recommend_v2.json
     - assets/clip/
     - assets/demo/
     - assets/sounds/

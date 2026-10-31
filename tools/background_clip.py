@@ -133,3 +133,35 @@ def background_embedding(image, segmenter, encoder):
         raise SegmentationFailure("Segmentation failed") from error
     with mask_person(image, mask) as filled:
         return normalize_embedding(encoder(filled))
+
+
+NOT_REAL_PERSON = 0.85  # reviewed on Open Images samples, 2026-11-01
+
+
+class PersonPrompts:
+    """CLIP text embeddings of "real person" vs "painting/statue/poster/
+    mannequin/mirror..." sentences (person_prompts.npz, see person_prompts.py)."""
+
+    def __init__(self, path: Path):
+        data = np.load(path)
+        self.embeddings = np.asarray(data["emb"], dtype=np.float32)
+        self.real = int(data["real"])
+        if self.embeddings.shape[1:] != (DIM,) or not 0 < self.real < len(self.embeddings):
+            raise ValueError("Unexpected person prompt embeddings")
+
+    def not_real_probability(self, image, box, encoder) -> float:
+        """Zero-shot probability that the main person (box padded by 10%) is not a
+        real person. Uses the person crop: the whole frame flags real people
+        standing in front of murals and statues."""
+        width, height = image.size
+        left, top = box.left * width, box.top * height
+        right, bottom = box.right * width, box.bottom * height
+        pad = .1 * max(right - left, bottom - top)
+        rect = (max(0, int(left - pad)), max(0, int(top - pad)),
+                min(width, int(right + pad)), min(height, int(bottom + pad)))
+        if rect[2] - rect[0] < 8 or rect[3] - rect[1] < 8:
+            return 0.0
+        with image.crop(rect) as crop:
+            logits = 100 * (self.embeddings @ encoder(crop)).astype(np.float64)
+        p = np.exp(logits - logits.max())
+        return float(p[self.real:].sum() / p.sum())
