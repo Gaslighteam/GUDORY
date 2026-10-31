@@ -1,0 +1,47 @@
+{
+  "device": "R5KYA00HPRW",
+  "pid": "23308",
+  "results": [
+    {
+      "lines": true,
+      "heatmap": true,
+      "sample": 138,
+      "detected": 0,
+      "drawn": 0,
+      "target_generation": 4
+    },
+    {
+      "lines": false,
+      "heatmap": true,
+      "sample": 140,
+      "detected": 0,
+      "drawn": 0,
+      "target_generation": 4
+    },
+    {
+      "lines": false,
+      "heatmap": false,
+      "sample": 142,
+      "detected": 0,
+      "drawn": 0,
+      "target_generation": 4
+    },
+    {
+      "lines": true,
+      "heatmap": false,
+      "sample": 144,
+      "detected": 0,
+      "drawn": 0,
+      "target_generation": 4
+    },
+    {
+      "lines": true,
+      "heatmap": true,
+      "sample": 146,
+      "detected": 0,
+      "drawn": 0,
+      "target_generation": 4
+    }
+  ],
+  "method": "On-device taps at observed bounds and actual live-state assertions; no camera images copied"
+}

@@ -1,0 +1,45 @@
+{
+  "source": "Retained log buffer of first 2-Hz overlay build; process no longer running",
+  "pid": 14027,
+  "samples": 561,
+  "timing_ms": {
+    "coreMs": {
+      "median": 1.9135,
+      "p95": 4.404,
+      "max": 30.033
+    },
+    "pipelineMs": {
+      "median": 179.40300000000002,
+      "p95": 221.466,
+      "max": 258.049
+    },
+    "overlayPrepareMs": {
+      "median": 0.5694999999999999,
+      "p95": 1.067,
+      "max": 10.519
+    },
+    "overlayPaintMs": {
+      "median": 0.724,
+      "p95": 1.47,
+      "max": 11.684
+    }
+  },
+  "max_lines": 6,
+  "modes": [
+    [
+      false,
+      true
+    ],
+    [
+      true,
+      false
+    ],
+    [
+      true,
+      true
+    ]
+  ],
+  "line_display_mismatches": 0,
+  "usable_mask_samples": 197,
+  "distinct_supported_heat_grids": 197
+}

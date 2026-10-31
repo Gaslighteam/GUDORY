@@ -1,0 +1,107 @@
+{
+  "recorded_utc": "2026-10-31T18:33:12.744206+00:00",
+  "device": "R5KYA00HPRW",
+  "model": "SM-S937N",
+  "android": "16",
+  "api": "36",
+  "package": "com.gaslighteam.gudory.directorv1",
+  "pid": "19716",
+  "live_samples_available": 100,
+  "sample_range": [
+    83,
+    182
+  ],
+  "warm_samples": 100,
+  "actual_person_samples": 0,
+  "valid_mask_samples": 0,
+  "directions": {
+    "hold": 100
+  },
+  "reasons": {
+    "phone-flat-or-attitude-unreliable": 100
+  },
+  "observed_instructions": [
+    "촬영자님, 잠시 그대로 유지해 주세요."
+  ],
+  "orientation_quarter_turns": [
+    0
+  ],
+  "timing_ms": {
+    "coreMs": {
+      "median": 1.794,
+      "p95": 5.256,
+      "max": 8.023
+    },
+    "poseMs": {
+      "median": 35.038,
+      "p95": 63.44,
+      "max": 84.705
+    },
+    "maskMs": {
+      "median": 71.8735,
+      "p95": 88.349,
+      "max": 92.59
+    },
+    "prepareMs": {
+      "median": 75.4105,
+      "p95": 96.374,
+      "max": 137.314
+    },
+    "pipelineMs": {
+      "median": 183.4505,
+      "p95": 233.688,
+      "max": 269.276
+    }
+  },
+  "last_reported_hz": 0.9831569996894635,
+  "overlay_prepare_ms": {
+    "median": 0.6465000000000001,
+    "p95": 5.829,
+    "max": 7.993
+  },
+  "overlay_paint_ms": {
+    "median": 0.801,
+    "p95": 1.656,
+    "max": 2.165
+  },
+  "overlay_modes_seen": [
+    [
+      false,
+      false
+    ],
+    [
+      false,
+      true
+    ],
+    [
+      true,
+      false
+    ],
+    [
+      true,
+      true
+    ]
+  ],
+  "line_display_mismatch_count": 0,
+  "heatmap_supported_samples": 0,
+  "heatmap_distinct_observed_grids": 0,
+  "overlay_options_events": 5,
+  "pose_and_mask_positive_core_ms": null,
+  "pose_and_mask_positive_pipeline_ms": null,
+  "target_generations_seen": [
+    0
+  ],
+  "max_detected_line_count": 0,
+  "cpu_percent_one_core_scale": 114.0,
+  "cpu_capacity_percent": 800,
+  "total_pss_kib": 600345,
+  "total_rss_kib": 724708,
+  "battery": {
+    "status": 5,
+    "level": 100,
+    "temperature": 391
+  },
+  "thermal_status": 0,
+  "runtime_error_count": 0,
+  "limitations": "Debug build, uncontrolled live scene; no claims of aesthetic quality or validated physical movement. CPU is one top snapshot. Core may be only a fallback path when person/mask are absent."
+}

@@ -1,0 +1,99 @@
+{
+  "recorded_utc": "2026-10-31T18:00:51.458026+00:00",
+  "device": "R5KYA00HPRW",
+  "model": "SM-S937N",
+  "android": "16",
+  "api": "36",
+  "package": "com.gaslighteam.gudory.directorv1",
+  "pid": "31230",
+  "live_samples_available": 257,
+  "sample_range": [
+    1,
+    257
+  ],
+  "warm_samples": 254,
+  "actual_person_samples": 94,
+  "valid_mask_samples": 172,
+  "directions": {
+    "hold": 252,
+    "capture": 5
+  },
+  "reasons": {
+    "person-or-mask-unavailable": 105,
+    "phone-flat-or-attitude-unreliable": 58,
+    "fresh-safety-evidence-required": 89,
+    "composition-acceptable": 5
+  },
+  "observed_instructions": [
+    "촬영자님, 그대로 유지하고 셔터를 눌러 주세요.",
+    "촬영자님, 잠시 그대로 유지해 주세요."
+  ],
+  "orientation_quarter_turns": [
+    -1,
+    0
+  ],
+  "timing_ms": {
+    "coreMs": {
+      "median": 1.5685,
+      "p95": 5.585,
+      "max": 13.6
+    },
+    "poseMs": {
+      "median": 28.3515,
+      "p95": 61.646,
+      "max": 77.502
+    },
+    "maskMs": {
+      "median": 50.378,
+      "p95": 68.7,
+      "max": 77.487
+    },
+    "prepareMs": {
+      "median": 64.019,
+      "p95": 77.749,
+      "max": 108.418
+    },
+    "pipelineMs": {
+      "median": 146.51850000000002,
+      "p95": 180.922,
+      "max": 220.255
+    }
+  },
+  "last_reported_hz": 1.8965782964158815,
+  "pose_and_mask_positive_core_ms": {
+    "median": 1.8159999999999998,
+    "p95": 5.672,
+    "max": 10.008
+  },
+  "pose_and_mask_positive_pipeline_ms": {
+    "median": 146.30349999999999,
+    "p95": 180.181,
+    "max": 220.255
+  },
+  "target_generations_seen": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "max_detected_line_count": 4,
+  "cpu_percent_one_core_scale": 100.0,
+  "cpu_capacity_percent": 800,
+  "total_pss_kib": 639991,
+  "total_rss_kib": 760112,
+  "battery": {
+    "status": 5,
+    "level": 100,
+    "temperature": 349
+  },
+  "thermal_status": 0,
+  "runtime_error_count": 0,
+  "limitations": "Debug build, uncontrolled live scene; no claims of aesthetic quality or validated physical movement. CPU is one top snapshot. Core may be only a fallback path when person/mask are absent."
+}

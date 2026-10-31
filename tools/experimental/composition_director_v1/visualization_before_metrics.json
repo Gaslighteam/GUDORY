@@ -1,0 +1,75 @@
+{
+  "recorded_utc": "2026-10-31T18:13:22.383369+00:00",
+  "device": "R5KYA00HPRW",
+  "model": "SM-S937N",
+  "android": "16",
+  "api": "36",
+  "package": "com.gaslighteam.gudory.directorv1",
+  "pid": "9820",
+  "live_samples_available": 150,
+  "sample_range": [
+    1,
+    150
+  ],
+  "warm_samples": 147,
+  "actual_person_samples": 0,
+  "valid_mask_samples": 0,
+  "directions": {
+    "hold": 150
+  },
+  "reasons": {
+    "phone-flat-or-attitude-unreliable": 150
+  },
+  "observed_instructions": [
+    "촬영자님, 잠시 그대로 유지해 주세요."
+  ],
+  "orientation_quarter_turns": [
+    0
+  ],
+  "timing_ms": {
+    "coreMs": {
+      "median": 1.232,
+      "p95": 2.587,
+      "max": 12.016
+    },
+    "poseMs": {
+      "median": 32.103,
+      "p95": 64.057,
+      "max": 83.28
+    },
+    "maskMs": {
+      "median": 55.328,
+      "p95": 70.543,
+      "max": 87.859
+    },
+    "prepareMs": {
+      "median": 67.322,
+      "p95": 89.757,
+      "max": 109.702
+    },
+    "pipelineMs": {
+      "median": 158.649,
+      "p95": 195.446,
+      "max": 227.794
+    }
+  },
+  "last_reported_hz": 1.9320805230476525,
+  "pose_and_mask_positive_core_ms": null,
+  "pose_and_mask_positive_pipeline_ms": null,
+  "target_generations_seen": [
+    0
+  ],
+  "max_detected_line_count": 0,
+  "cpu_percent_one_core_scale": 150.0,
+  "cpu_capacity_percent": 800,
+  "total_pss_kib": 550336,
+  "total_rss_kib": 665324,
+  "battery": {
+    "status": 5,
+    "level": 99,
+    "temperature": 373
+  },
+  "thermal_status": 0,
+  "runtime_error_count": 0,
+  "limitations": "Debug build, uncontrolled live scene; no claims of aesthetic quality or validated physical movement. CPU is one top snapshot. Core may be only a fallback path when person/mask are absent."
+}
