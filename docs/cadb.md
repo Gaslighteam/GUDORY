@@ -9,8 +9,14 @@ from AADB (Flickr): use them locally for training and evaluation only. Never com
 or upload them; only aggregate outputs (weights, statistics) may ship.
 
 The score says *how good* a composition is, not *where to move*. So CADB cannot
-train GUDORY's direction coaching directly. It can train a **scorer** and back up
-claims with numbers.
+train GUDORY's direction coaching directly.
+
+**How it is used:** CADB's 694 usable `human` photos train recommender v2, and
+their scores are the sample weights (`tools/train_recommender_v2.py`,
+`tools/report_v2.md`). A post-shot score in the app was planned and then
+**dropped** (Taeho, 2026-11-01). Section 1 below is kept as a measured result only.
+Adding person geometry (position, thirds, margins, size) to CLIP did not help:
+SRCC 0.568 → 0.573, and geometry alone scored 0.00–0.02.
 
 ## Results (measured 2026-11-01, lead's PC)
 
