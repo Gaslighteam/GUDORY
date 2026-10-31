@@ -21,7 +21,6 @@ import 'framing.dart';
 import 'shot_orientation.dart';
 import 'shot_state.dart';
 import 'widgets/controls.dart';
-import 'widgets/language.dart';
 import 'widgets/instruction_bubble.dart';
 import 'widgets/mode_controls.dart';
 import 'widgets/overlays.dart';
@@ -203,10 +202,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     _toast(front ? '전면 카메라: 구도 안내 없이 찍어요' : '구도 안내를 다시 시작해요');
   }
 
-  Future<void> _pickLanguage() async {
-    final lang = await pickLanguage(context, ref.read(languageProvider));
-    if (lang == null || !mounted) return;
+  /// Picked in the ⠿ panel: the highlight moves, then the panel closes.
+  void _setLanguage(String lang) {
     ref.read(languageProvider.notifier).set(lang);
+    Future.delayed(const Duration(milliseconds: 280), () {
+      if (mounted) _closePanel();
+    });
   }
 
   void _openTutorial() => context.push('/tutorial');
@@ -483,16 +484,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                   animation: _panelCurve,
                                   alignment: Alignment.centerRight,
                                   child: CameraMenuPanel(
-                                    languageLabel:
-                                        instructionLanguages[lang] ?? '한국어',
+                                    language: lang,
                                     onTutorial: () {
                                       _closePanel();
                                       _openTutorial();
                                     },
-                                    onLanguage: () {
-                                      _closePanel();
-                                      _pickLanguage();
-                                    },
+                                    onLanguage: _setLanguage,
                                     onClose: _closePanel,
                                     quarterTurns: turns,
                                   ),
